@@ -34,7 +34,7 @@ eslint and tsc clean; production build OK; `npm audit --omit=dev` shows 0 vulner
 - [x] Frontend shell: Vite 8 + React 19 + TS 6 + Tailwind 4 + router; 8 nav pages (honest placeholders),
       live Overview health and readiness, DEMO banner, loading/empty/error states (`App.test.tsx`, `client.test.ts`)
 - [x] `scripts/dev.ps1` one-command run. Smoke-tested: migrate → seed ×2 → `/health` 200, `/ready` 200, 404 envelope
-- [~] CI workflow written (`.github/workflows/ci.yml`). **Not yet run**: it runs on the first push, which needs your go-ahead
+- [x] CI workflow (`.github/workflows/ci.yml`): green on GitHub since 2026-11-04 (backend incl. PostgreSQL 17 variants, secrets, frontend, e2e). First runs fixed a nonexistent `setup-uv@v10` tag and a job-wide `APP_ENV` that conflicted with the pinned manifests
 - [x] **Neon verified 2026-11-03** (project `routewise-ai`, PostgreSQL 17.11, region ap-southeast-1):
   - `DATABASE_URL` uses the **direct** endpoint (not `-pooler`), `sslmode=require` + `channel_binding=require`, TLS with certificate verification
   - Database was empty before migrating (0 tables, `public` schema only)
@@ -190,7 +190,7 @@ waiting for a disposable `TEST_DATABASE_URL`, plus the opt-in live checks, which
    translator-assisted)
 3. Live benchmark run → publishable report → README numbers and résumé bullet
 4. Five observed failure modes from real runs (1 of 5)
-5. First CI run green (incl. PostgreSQL concurrency)
+5. ~~First CI run green (incl. PostgreSQL concurrency)~~ — done 2026-11-04 (1,544 backend tests passed in CI)
 6. Deployment verified end to end
 
 ## Finalisation (2026-11-04)
