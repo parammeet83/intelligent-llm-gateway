@@ -8,9 +8,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
-    UV_PROJECT_ENVIRONMENT=/app/.venv
+    UV_PROJECT_ENVIRONMENT=/app/backend/.venv
 
-WORKDIR /app
+# Mirror the repository layout (/app = repo root, /app/backend = backend): app.core.config resolves
+# REPO_ROOT and backend/config/ relative to its own location, so a flattened /app layout would look
+# for /backend/config/models.yaml and fail at startup.
+WORKDIR /app/backend
 # Dependencies first (cached layer), from the lockfile only.
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev --no-install-project
