@@ -1,7 +1,24 @@
 # Deployment
 
-Status (2026-11-04): **prepared, not deployed.** It needs three things only you can do (below). No live URL exists yet,
-so none is listed anywhere in this repository.
+Status (2026-11-04, verified): **deployed as a demo (mock provider only).**
+
+- API (Render free, Singapore, Docker): https://routewise-api-ggjk.onrender.com (service `routewise-api`)
+- Dashboard (Vercel Hobby): https://routewise-dashboard.vercel.app (project `routewise-dashboard`)
+- Database: the existing Neon project (migrations at head)
+- Production checks (2026-11-04 ~20:17 UTC): 26/26 API checks and 4/4 real-browser checks passed. These covered health,
+  readiness, admin rejection and sign-in, a temporary tenant key (created, used, revoked, then rejected), invalid-key
+  rejection, mock generation with a routing decision, duplicate-ID rejection, tenant isolation, CORS (dashboard origin
+  allowed, foreign origin refused), the dashboard bundle targeting the API, SPA deep links and security headers.
+- Production uses `MOCK_PROVIDER_ENABLED=true` and `GROQ_ENABLED=false` until the registered benchmark is finished, so
+  production traffic never uses its Groq quota.
+- The production `ADMIN_TOKEN` and `API_KEY_PEPPER` were generated randomly and are kept only in Render and in the
+  owner's local file `%USERPROFILE%\.routewise-production-secrets.env` (never in the repository).
+- The Vercel project is not linked to GitHub, because the Vercel GitHub integration isn't installed. It was deployed
+  from `frontend/` with the Vercel CLI. To get automatic deploys, install the integration and connect the repository
+  (root directory `frontend`).
+- Render `autoDeploy` is off: deploy a new commit from the Render dashboard (*Manual Deploy*).
+- The first Render deploy failed because the image flattened `backend/` into `/app`, so the app looked for
+  `/backend/config/models.yaml`. The Dockerfile now mirrors the repository layout (`/app/backend`).
 
 ## Target (free tier only)
 

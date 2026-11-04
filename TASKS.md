@@ -203,4 +203,5 @@ waiting for a disposable `TEST_DATABASE_URL`, plus the opt-in live checks, which
 - [x] Security scans: pip-audit 0 known vulnerabilities; `npm audit --omit=dev` 0 (one moderate dev-only advisory:
   minimatch via ESLint); detect-secrets 0 findings
 - [x] Deployment configuration: Render API (`render.yaml`) + Vercel dashboard (`frontend/vercel.json`)
-- [!] Deploy — needs Render and Vercel sign-in (docs/DEPLOYMENT.md)
+- [x] Deployed 2026-11-04 (demo, mock provider only): API https://routewise-api-ggjk.onrender.com, dashboard
+  https://routewise-dashboard.vercel.app; 26/26 production API checks and 4/4 browser checks passed (docs/DEPLOYMENT.md)
