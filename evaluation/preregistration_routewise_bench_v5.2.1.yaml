@@ -1,0 +1,178 @@
+# RouteWise benchmark pre-registration for routewise_bench_v5.2.1 (prereg-v5.2.1): a SCORING
+# AMENDMENT of execution revision routewise_bench_v5.2. Written on 2026-11-04 (2026-11-04T14:22:54Z) BEFORE any run.
+# No live benchmark of any version has been run; the only benchmark execution so far was a
+# simulated (mock-provider) pipeline check on v1.
+#
+# What v5.2.1 is: the unchanged dataset routewise_bench_v5 (45 prompts, expected answers and
+# metadata byte-identical), executed exactly as in v5.2, with the scoring spec of three cases
+# (S15, T11, C12) replaced by the pinned scoring amendment. Every other case is scored exactly as
+# the dataset file specifies. All other rules are carried over from prereg-v5.2 unchanged.
+#
+# Pinning chain: routewise_bench_v5.2.1.revision.yaml pins this file's SHA-256; this file pins the
+# dataset, the scoring amendment and the schema-5 experiment manifest; the amendment pins the
+# dataset and the corrected v5.2 revision it amends. The runner and `eval-run --revision
+# routewise_bench_v5.2.1` refuse to start, before any network call, if any link fails.
+# prereg-v1 to -v5.2 are unchanged.
+version: prereg-v5.2.1
+registered_on: '2026-11-04'
+registered_at_utc: '2026-11-04T14:22:54Z'
+revision: routewise_bench_v5.2.1
+supersedes: prereg-v5.2 (scoring of S15, T11 and C12 only; v5.2 is refused at run time because its manifest
+  no longer matches the code)
+amends_revision:
+  name: routewise_bench_v5.2
+  file: routewise_bench_v5.2.revision.yaml
+  sha256: 59257813e1093d512f0f6fb6459e8ee40aebede789d55908f661dca4bb06d347
+dataset: routewise_bench_v5
+dataset_sha256: 76a4d1906b3e90bff6ed504f67067bf891923332fa00256227e303c11dea27bd
+
+experiment_manifest:
+  file: experiment_manifest_routewise_bench_v5.2.1.yaml
+  sha256: dd6b29f870abf4b93fa7b21fba007ac05d115496bad30568414f16ab125b850e
+  covers: >-
+    Schema 5 (= schema 4 with the v5.2 quota): every application module loaded on the benchmark execution path (50 files: the
+    import closure of app.cli, the evaluation runner/preflight/manifest/report and the provider
+    registry, including core/logging.py, db/*, auth/*, seed.py and every provider adapter),
+    backend/pyproject.toml, backend/uv.lock, the routing policy and model registry, the full policy
+    with weights, every enabled model with its provider model ID, tier, reasoning effort and pricing
+    snapshot, provider retry/charge settings, execution settings, temperature, strategies, pacing,
+    the per-attempt quota (execution.attempt_quota), Python version and implementation, and the
+    presence of proxy/certificate environment variables.
+  pacing: concurrency 1, delay_s 6.0 after every request (a floor only), no case limit, no code execution.
+
+scoring_amendment:
+  file: scoring_amendment_routewise_bench_v5.2.1.yaml
+  sha256: bab04a1a24f2f7d52538d49472edd52579ce08ded0ed10460225498b4a4c8431
+  cases:
+    S15: age must be a JSON integer
+    T11: number-only output; currency symbols are not allowed
+    C12: strict HH:MM time format
+changes_from_prereg_v5_2:
+- 'S15: age must be a JSON integer (field_types age: integer).'
+- 'T11: number-only output; currency symbols are not allowed (currency_symbols: []).'
+- 'C12: start times must be strict HH:MM strings (validator meeting_schedule_hhmm).'
+- 'No other case''s scoring changes. Dataset, prompts, expected answers, execution, quota, quality, cost,
+  scope, validity and publication rules: unchanged from prereg-v5.2.'
+- 'Publication gate unchanged: the dataset metadata still has no reviewed_by entries (T17 is pending Spanish-speaker
+  validation), so no run is publishable.'
+
+strategies:
+  baseline_premium: >-
+    Every case requested with preferred_tier=premium. Premium-only generation is guaranteed by
+    construction (tier floor, no downgrade, TIER_TOO_LOW exclusion, executor calls eligible models
+    only) and verified per attempt (baseline_tier_guard).
+  routewise: Routing policy as pinned in the manifest (selection = cheapest_capable).
+  routewise_tier_first: Same policy with selection = lowest_tier_first.
+
+baseline_tier_guard: premium_only
+
+quota:
+  provider: groq
+  applies_to: all Groq models combined (a self-imposed aggregate; stricter than Groq's per-model limits)
+  reservation: >-
+    Each actual provider attempt reserves input_bound + output_bound before transmission, as a
+    ledger transaction (lock, re-read, check, write, unlock). Exactly one reservation per network
+    attempt. Settlement changes only daily_tokens and status; tpm_reserved_tokens stays the worst
+    case for the full 60 seconds. not_sent releases both budgets; sent_unknown keeps the worst
+    case in both.
+  token_accounting:
+    strict_content_bound: "UTF-8 bytes of all message contents. Strict for byte-level BPE tokenizers (at most one token per byte)."
+    empirical_framing_allowance: "256 tokens per attempt for the chat-template framing and any provider-injected preamble. EMPIRICAL, NOT a guaranteed bound: derived from one observed request (83 input tokens for a 53-byte prompt, so framing <= 82). If a response reports more input tokens than reserved, the run stops after that attempt, which has already been sent."
+    output_bound: "the case's max_output_tokens (the provider's max_completion_tokens cap, including reasoning tokens)."
+    provider_reported_usage: "the provider's reported input/output tokens: used for the daily budget after the attempt, and checked against the reserved bounds. Never used to shrink the per-minute reservation."
+  limits:
+    tokens_per_minute: {value: 8000, safety: 0.75, status: "SELF-IMPOSED aggregate cap, set at the value observed in x-ratelimit-limit-tokens for openai/gpt-oss-20b on this key (2026-11-04, one response). gpt-oss-120b and Free-plan limits are NOT known and NOT inferred; a lower header value tightens the cap"}
+    requests_per_day: {value: 1000, safety: 0.9, status: "SELF-IMPOSED aggregate cap, set at the value observed in x-ratelimit-limit-requests for openai/gpt-oss-20b (one response); 120B / Free-plan limits not known, not inferred"}
+    requests_per_minute_cap: {value: 10, status: "self-imposed; Groq RPM for this account is not verified and not exposed in headers"}
+    tokens_per_day: {value: null, status: "NOT verified. An operator-supplied remaining daily token budget with source and verification time (same UTC day) is required; the preflight and run fail closed without it"}
+  ledger:
+    file: evaluation/reports/quota_ledger.json (+ .lock sidecar)
+    format: 2
+    concurrency: exclusive OS file lock per transaction (msvcrt on Windows, fcntl on POSIX), released by the OS if the holder dies
+    restart: the per-minute window, daily usage and latest headers are rebuilt from the file
+  headers: >-
+    x-ratelimit-limit-tokens / remaining-tokens (per minute) and limit-requests /
+    remaining-requests (per day) are persisted with wall-clock reset times and can only tighten
+    the budget. No daily token information is inferred from them.
+  operator_duties:
+    - "Keep all other traffic (other scripts, apps, team members) off the same Groq organisation's quota for the whole run. The guard sees other traffic only through rate-limit headers, after the fact."
+    - "Verify gpt-oss-120b's limits and the account's daily token budget in the Groq console before the run; supply the remaining daily budget with its source and time."
+  daily_accounting:
+    - "Usable daily tokens = operator remaining budget x 0.9 - ledger daily_tokens since the budget's verification time."
+    - "An attempt that doesn't fit is not sent; the pacer is then exhausted and the run is marked incomplete."
+    - "A run is complete only if every case ran and no reservation was refused or exceeded."
+  preflight: >-
+    `eval-validate --dataset routewise_bench_v5 --revision routewise_bench_v5.2.1`: unchanged from
+    v5.1 and v5.2 (378 maximum provider attempts for 135 gateway requests; fails closed without a verified
+    daily budget).
+
+scope:
+  model_families: >-
+    Every pinned model is OpenAI GPT-OSS on Groq: gpt-oss-20b serves the small tier and
+    gpt-oss-120b the premium tier, and there is no medium-tier model. The comparison is between
+    two sizes of one model family.
+  premium_meaning: '"Premium" means the best free model available, not a frontier model.'
+  generalisation: >-
+    Results apply only to this fixed 45-case suite (routewise_bench_v5 at the SHA-256 above) under
+    the pinned configuration, providers, pacing and run date. They cannot establish general
+    performance on production workloads.
+
+execution:
+  pairing: Strategies interleaved per case (order alternates by case index).
+  temperature: 0
+  retries_and_fallbacks: As pinned (Groq max_retries 1; fallbacks within the decision's eligible models); each attempt individually reserved.
+  tenant: A dedicated evaluation tenant with no budget.
+  code_execution: none.
+  concurrency: 1
+  delay_s: 6.0
+
+reporting:
+  per_case: Answering model as reported by the provider, registry model and tier, and every attempt.
+  per_strategy: Answer availability separately from the pass rate (conditional on an answer being returned), plus pass_rate_unconditional.
+  quota: The run snapshot records the preflight, the stop reason (if any) and the number of reserved attempts.
+
+primary_metric: pass_rate (conditional on an answer being returned)
+primary_population: All 45 cases; a case without an answer is missing, not failed.
+
+run_validity:
+  min_answered_fraction: 0.95
+  provider_errors: missing
+  rule: >-
+    Valid only if every strategy answered at least 43 of 45 cases, every answer came from a
+    manifest model, every baseline attempt was premium-tier, and the run was not stopped by the
+    quota guard. Invalid runs are incomplete and not used for any claim.
+
+baseline_floor:
+  rule: Below a 0.60 conditional baseline pass rate the comparison is uninformative.
+  floor: 0.60
+
+quality_rule:
+  description: Non-inferior if the conditional pass rate is no more than 5 percentage points below the baseline's.
+  non_inferiority_margin: 0.05
+  also_report: Wilson 95% CIs; paired bootstrap 95% CI of the difference over cases answered by both. "Supported" only if the lower bound is above -0.05.
+
+secondary_rules:
+  per_difficulty: Descriptive only.
+
+cost_rule:
+  description: Lower-cost claims need CI-supported non-inferiority, lower estimated list cost per accepted answer, no unknown cost observations, a valid run and the baseline floor met.
+  requires_ci_supported_non_inferiority: true
+  unknown_cost_observations: block
+  basis: Estimated list-price (shadow) cost; actual charges on Groq's Free plan are $0.
+
+latency:
+  report: p50 and p95 end-to-end latency per strategy. Pacing waits happen before each request and are excluded; waits for a retry or fallback reservation inside a request are included (rare, and noted).
+  informational_slo_p95_ms: 15000
+
+per_case_limits:
+  simple:   {max_cost_usd: "0.0005", max_latency_ms: 10000}
+  standard: {max_cost_usd: "0.002",  max_latency_ms: 15000}
+  complex:  {max_cost_usd: "0.005",  max_latency_ms: 30000}
+
+statistics:
+  bootstrap_resamples: 10000
+  bootstrap_seed: 20261104
+
+publication:
+  dataset_review_required: true
+  rule: Only after every case has reviewed_by set by the owner, only from simulated=false runs, and only with the scope statements, the conditional-pass-rate label and each strategy's answer rate.

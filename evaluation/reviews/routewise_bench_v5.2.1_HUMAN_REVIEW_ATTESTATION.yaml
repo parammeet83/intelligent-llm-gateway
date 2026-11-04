@@ -1,0 +1,211 @@
+# Human-review attestation for routewise_bench_v5.2.1 (dataset routewise_bench_v5, unchanged).
+# A separate record of the project owner's review decisions. It does not modify the dataset, its
+# metadata or any hash-pinned artefact, and it is not read by the publication gate. Do not edit;
+# record a new attestation if anything changes.
+attestation: human-review-attestation-routewise_bench_v5.2.1
+record_created_at_utc: '2026-11-04T16:38:08Z'
+reviewer:
+  role: Project owner
+  name: not recorded (role only)
+recorded_by: Claude Code (AI coding assistant), at the project owner's instruction. Every decision below
+  is the project owner's own statement. The recorder did not review the cases and did not independently
+  verify the review.
+review_context: The project owner stated that they reviewed all 45 cases in a conversation outside this
+  repository and relayed the decisions to the recorder on 2026-11-04.
+scope:
+  dataset: routewise_bench_v5
+  dataset_file: evaluation/datasets/routewise_bench_v5.jsonl
+  dataset_sha256: 76a4d1906b3e90bff6ed504f67067bf891923332fa00256227e303c11dea27bd
+  case_count: 45
+  case_line_sha256_definition: SHA-256 of the case's exact line in the dataset file (UTF-8, without the
+    line ending)
+  revision:
+    name: routewise_bench_v5.2.1
+    file: evaluation/routewise_bench_v5.2.1.revision.yaml
+    sha256: 42666d44eddac1a1b9395384ba92183be0f7025ac91d867e7261b64af265a6e7
+  preregistration:
+    file: evaluation/preregistration_routewise_bench_v5.2.1.yaml
+    sha256: 2a78174bc1ebd7ea78e692d31ca1097623dd6edd144416a486fcdc15f5db9070
+  experiment_manifest:
+    file: evaluation/experiment_manifest_routewise_bench_v5.2.1.yaml
+    sha256: dd6b29f870abf4b93fa7b21fba007ac05d115496bad30568414f16ab125b850e
+  scoring_amendment:
+    file: evaluation/scoring_amendment_routewise_bench_v5.2.1.yaml
+    sha256: bab04a1a24f2f7d52538d49472edd52579ce08ded0ed10460225498b4a4c8431
+    cases:
+      S15: integer-only age (a JSON integer; floats, strings, booleans and null fail)
+      T11: bare number only (no currency symbols)
+      C12: strict HH:MM start times
+  dataset_metadata:
+    file: evaluation/datasets/routewise_bench_v5.meta.yaml
+    sha256: 262dde03c4018fe1f79c1fe8760f32cfcce3e1624284ea6b56eafed432806ada
+    note: Immutable; its reviewed_by field is empty and was NOT modified. This attestation is a separate
+      record.
+owner_confirmations:
+  reviewed_prompts_and_expected_answers: true
+  all_45_cases_reviewed: true
+  no_benchmark_results_generated_during_review: true
+decisions:
+  S01:
+    decision: approved
+    case_line_sha256: a9d3f95cb4f4a2fd7f125d9cc5be07555027bfc30a0d5a593dd756f355ca96c3
+  S02:
+    decision: approved
+    case_line_sha256: c98605af6bb62ba0eba28b007505b6087d537d95e7929743d63bca8ac967c622
+  S03:
+    decision: approved
+    case_line_sha256: df605710a732197d9313bfb1a6458866c23067c5540a67edb3dbad8cd8b9aa05
+  S04:
+    decision: approved
+    case_line_sha256: bbc3d4c0566bf24e0be88b4549c21e5ba8e90bff14243d8c5ad801baf68600dc
+  S05:
+    decision: approved
+    case_line_sha256: 487836984d337490d3e2444c144b3a5eb9c4b616ff6fac721b577948415aeddf
+  S06:
+    decision: approved
+    case_line_sha256: f5296b0dce6d4d58342438caacf7fbcf1a72b2b02ac1e06f133597fc5d474356
+  S07:
+    decision: approved
+    case_line_sha256: f1b96743e82a222945375194dc096257e50b6bc2dcbf3df448367c1bc8e7e8d1
+  S08:
+    decision: approved
+    case_line_sha256: bd57af4406d83691c45892b6c7d26041192bf3761f7f9c3596c1de6eedcd953a
+  S09:
+    decision: approved
+    case_line_sha256: edf21f626965550d5bc753091e6dd859129db3377ed1b427653cc61608f415ac
+  S10:
+    decision: approved
+    case_line_sha256: 1d4656d88086fbf54410ce0ae222a0edcc3e0bdc2486fea5d69bc229cb543ed1
+  S11:
+    decision: approved
+    case_line_sha256: 5bc6a520ab479904cce88282805b90fdf792c405c65259a1c6c50ea019c2e295
+  S12:
+    decision: approved
+    case_line_sha256: 6302b7f1ca23127a44c940774a45d1762c0ae97060e41ead8c44fb45e1034016
+  S13:
+    decision: approved
+    case_line_sha256: 7847b2ab368f4d82545ba613a644b0be681419792bb9149b8878477fc9b1b83b
+  S14:
+    decision: approved
+    case_line_sha256: 51e81f6a8fd7a616b82b9f6ea88317999e8bbce795b269b628c75c33d378ad5e
+  S15:
+    decision: approved_after_scoring_amendment
+    scoring_amendment_condition: integer-only age (a JSON integer; floats, strings, booleans and null
+      fail)
+    case_line_sha256: a83c13e3aeb7e1b40012662786f98c7e95bb69a1ce2b6405ba1187b6eac437a0
+  T01:
+    decision: approved
+    case_line_sha256: 9b3edf68c14e22863c964a55557c323ea9fdf87ea80fd385bdcd0e81a5eb91ed
+  T02:
+    decision: approved
+    case_line_sha256: 82fec7ee3fe802c41b70caad98a317e12e7d4be0224bb138b98caba0c044cb91
+  T03:
+    decision: approved
+    case_line_sha256: f81b94504ff2664cc2c8396de4b01982bffdb920f41d7dfd1dd6fa05a46c652f
+  T04:
+    decision: approved
+    case_line_sha256: 811b7789bbc3310818eaa755b922262d394ce85e276bcf0ee9c9b705d440ea32
+  T05:
+    decision: approved
+    case_line_sha256: 7ad484bf5cefd67a82c3c2656817d0813ead8868cfb95ecd0d0f2f03184adb52
+  T06:
+    decision: approved
+    case_line_sha256: d8653ec4b6eb1d9e3947345c8193d8ff1f6473491a48ddff3ccd49ec537ff978
+  T07:
+    decision: approved
+    case_line_sha256: 9a8f7686c762052557ac11b1579c9bec93834e167fc628b06ce82ae2f52588ef
+  T08:
+    decision: approved
+    case_line_sha256: bcd95bd7411c9e9738526ac22c06e8fb8a153c41af3d9b186ad4727802302e42
+  T09:
+    decision: approved
+    case_line_sha256: 5538eb2a3e8068065c6553f35cb79baaa8a1db26c1c21401cd71235d13f0b661
+  T10:
+    decision: approved
+    case_line_sha256: f668d0b4b1a476c5f4046e1bb036a3499dd9b5abcc321c91cedc5884b3b00642
+  T11:
+    decision: approved_after_scoring_amendment
+    scoring_amendment_condition: bare number only (no currency symbols)
+    case_line_sha256: 9311821632fa9f9f1c03cd6bba256ebdb03084abbbbd402027a7ea97eb3bdcaf
+  T12:
+    decision: approved
+    case_line_sha256: 6abc6cc410f9882fe5bb9e70feba51619760ccef8471d5ca2bbb05c703047e9b
+  T13:
+    decision: approved
+    case_line_sha256: 051f7ccd9a191ef31316e25c9ef7ee81dbd93b6723a467512f63e520aa3ed501
+  T14:
+    decision: approved
+    case_line_sha256: a26cf22f630169c9d0ab3ad421aee6da894b664b1ef07506ede033e64b55597e
+  T15:
+    decision: approved
+    case_line_sha256: 4fa0bb2db78eccfd1658fbddf50883305bbfd1b48dd5750b2e1cb3d7ef1ab127
+  T16:
+    decision: approved
+    case_line_sha256: 0a0ea08622eba5c491733f6c0de31877d35c04a203bf6e1963fd3b724dec3981
+  T17:
+    decision: approved
+    review_method: translator_assisted_owner_review
+    note: Checked by the owner using Google Translate; no native or proficient Spanish speaker reviewed
+      it (see t17_disclosure).
+    case_line_sha256: 61b2184e4314b63e281cd47d273728ccd037f7d0cdcd6588350b687004d58687
+  T18:
+    decision: approved
+    case_line_sha256: 17d20bcaf1b20db0146ec5cb87c9b365a90d5de740a035a5f7f5a9e1ed95968d
+  C01:
+    decision: approved
+    case_line_sha256: daade2f46e717d72b33ef8e22948df13ca4ce0c7f683b29099fde8ea2d440f9d
+  C02:
+    decision: approved
+    case_line_sha256: 85cc33dc00369df63fe30ba8b1ebbd97ea84515840f8dccff4bfa19f32344ffa
+  C03:
+    decision: approved
+    case_line_sha256: 68f29688726256933e0cbee75db108554875687538ea943c2f87c4297e7f94b7
+  C04:
+    decision: approved
+    case_line_sha256: 98e3b6b2ab341abc8829a3c9c1adc30cd3ad26129094e7007e9c124a39d30377
+  C05:
+    decision: approved
+    case_line_sha256: 7e3935733d77e959ab0077ba72216847e5df0a440fd228ca332298177af3c8df
+  C06:
+    decision: approved
+    case_line_sha256: 9dd83643aa639fcf3ef780e04dd5e9a7c26846b030ffec7c7b4196fef5cb2237
+  C07:
+    decision: approved
+    case_line_sha256: 81d46e09ae35d334c87ecc0bc7f0541211818f8b2d39b839b50222a61608fc2c
+  C08:
+    decision: approved
+    case_line_sha256: bdf13e57877e28cf82d2968fb78e80bde0f2e80efc56d9223d6d98da57ae1f9f
+  C09:
+    decision: approved
+    case_line_sha256: 66212155ec74e6172b4119dbdcfc131cf9c5fe05ab38d85164d535de5c29f571
+  C10:
+    decision: approved
+    case_line_sha256: 17a2405a3b3425876638cd2ef64e03b75ec1bc03ee07076abbc3cff4f1bd67bd
+  C11:
+    decision: approved
+    case_line_sha256: 15fb0618713314a39eabb2e3d9d4a564f64cf12b2911dd8a1a31648f087c8feb
+  C12:
+    decision: approved_after_scoring_amendment
+    scoring_amendment_condition: strict HH:MM start times
+    case_line_sha256: 96d7cb8c2dc8cd11cbe1d9bda45ee8a6afb74e2765e16a679e5a6ecb546e260a
+summary:
+  approved: 42
+  approved_after_scoring_amendment: 3
+  rejected: 0
+  pending: 0
+  total: 45
+t17_disclosure:
+  case: T17
+  correct_answer: B
+  spanish_sentence: La biblioteca abre a las nueve en punto.
+  method: 'Translator-assisted owner review: the project owner checked the Spanish options using Google
+    Translate.'
+  native_or_proficient_speaker_review: none
+  independent_linguistic_validation: none
+  claim_limit: This is NOT native-speaker validation and NOT independent linguistic validation.
+benchmark_status_at_record_creation: No live (non-simulated) benchmark run of any version exists; the
+  only benchmark execution so far was a simulated (mock-provider) pipeline check on v1. No result was
+  produced or consulted for this review.
+publication_gate: Not read by the current code. The gate (report.py) requires Dataset.fully_reviewed,
+  which is computed only from reviewed_by in the immutable v5 metadata; this attestation does not make
+  any run publishable.

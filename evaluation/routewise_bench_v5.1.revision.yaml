@@ -1,0 +1,14 @@
+# Execution revision routewise_bench_v5.1: the root of its hash chain.
+# The dataset routewise_bench_v5 is unchanged (its meta still pins prereg-v5, which is superseded and
+# refused at run time). This file pins the v5.1 pre-registration, which pins the dataset and the
+# schema-4 manifest. Select it with `--revision routewise_bench_v5.1`.
+revision: routewise_bench_v5.1
+created_on: 2026-11-04
+dataset: routewise_bench_v5
+dataset_sha256: 76a4d1906b3e90bff6ed504f67067bf891923332fa00256227e303c11dea27bd
+preregistration:
+  file: preregistration_routewise_bench_v5.1.yaml
+  sha256: 731fe50a02e2659d9884830c3450fd82bab0f5efa3155424a05f2951e75e5e0d
+changelog: datasets/routewise_bench_v5.1.CHANGELOG.md
+review_report: datasets/routewise_bench_v5.1_review_report.md
+status: draft-pending-human-review

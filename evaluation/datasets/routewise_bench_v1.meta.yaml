@@ -1,0 +1,13 @@
+# Provenance for routewise_bench_v1.jsonl
+dataset: routewise_bench_v1
+cases: 45            # 15 simple, 18 standard, 12 complex
+authored_by: "AI-drafted (Claude) on 2026-11-04 at the project owner's request"
+license: "Original content written for this project; no examples copied from public benchmarks."
+status: draft-pending-human-review
+
+# Human review (spec card S2-04: "examples you wrote yourself"). For each case, the reviewer checks
+# that the prompt is unambiguous, the expected answer is correct, and the scoring rule accepts all
+# and only correct answers; edits the case if needed; then records their name and date below.
+# Results must not be published until every case is listed here.
+reviewed_by: {}
+#   S01: {reviewer: "<name>", date: "YYYY-MM-DD", notes: ""}

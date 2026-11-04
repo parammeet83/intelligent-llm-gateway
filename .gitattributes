@@ -1,0 +1,4 @@
+# Hash-pinned benchmark artefacts (datasets, metadata, pre-registrations, manifests, amendments,
+# attestations) are registered by the SHA-256 of their exact bytes. Never convert their line endings,
+# or a Windows checkout would no longer match the registered hashes.
+evaluation/** -text

@@ -1,0 +1,28 @@
+# Provenance for routewise_bench_v3.jsonl. v1 and v2 (and their pre-registrations) are kept unchanged.
+dataset: routewise_bench_v3
+supersedes: routewise_bench_v2
+cases: 45            # 15 simple, 18 standard, 12 complex (IDs S01-S15, T01-T18, C01-C12)
+created_on: 2026-11-04
+authored_by: "AI-drafted (Claude) on 2026-11-04 at the project owner's request; revised from v2 after the owner's independent review"
+status: draft-pending-human-review
+changelog: routewise_bench_v3.CHANGELOG.md
+review_pack: routewise_bench_v3_review.md
+
+# Same originality position as v2: v1's public-exercise inputs were removed in v2. The v3 rewrites
+# (T03, T04, T07, T17, C07, C09) reuse v2's own scenarios. Nothing beyond that was searched.
+license: "Written for this project. Public-exercise inputs found in v1 were removed in v2; originality beyond that is unverified."
+
+# No code-execution cases (model-generated code can't be isolated safely on the operator's machine).
+code_execution: false
+
+# The runner refuses to start if preregistration_routewise_bench_v3.yaml no longer matches this hash.
+preregistration_sha256: c3172bd6a0bd32bae01910b025706668d2f2cd00f1bf63043ecd4eba264aeaea
+
+# Cases whose content differs from v2. All other cases are byte-identical to v2 (tested).
+changed_from_v2: [T03, T04, T07, T12, T17, C07, C09]
+
+# Human review (spec card S2-04). For each case, the reviewer checks that the prompt is unambiguous,
+# the expected answer is correct, and the scoring rule accepts all and only correct answers; then
+# records their name and date below. Results must not be published until every case is listed.
+reviewed_by: {}
+#   S01: {reviewer: "<name>", date: "YYYY-MM-DD", notes: ""}

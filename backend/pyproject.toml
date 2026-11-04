@@ -1,0 +1,77 @@
+[project]
+name = "routewise-backend"
+version = "0.1.0"
+description = "RouteWise AI — cost-aware, explainable LLM gateway (backend)"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "httpx>=0.28",
+    "pyyaml>=6.0.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "aiosqlite>=0.20",
+    "respx>=0.21",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "types-PyYAML>=6.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "postgres: requires a real PostgreSQL database (TEST_DATABASE_URL)",
+]
+filterwarnings = [
+    "error::pytest.PytestUnraisableExceptionWarning",
+    # Upstream deprecation inside fastapi.testclient (Starlette 1.10); not actionable here.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF", "SIM"]
+ignore = ["S101"]  # assert is fine in tests and for invariants
+
+[tool.ruff.lint.isort]
+# The local alembic/ migrations folder would otherwise make ruff treat the package as first-party.
+known-third-party = ["alembic"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106"]
+"alembic/versions/**" = ["E501"]
+# Reference answers are test data; wrapping them would make them harder to review.
+"tests/evaluation/test_dataset_and_scorers.py" = ["E501"]
+"tests/evaluation/test_dataset_v2.py" = ["E501"]
+"tests/evaluation/test_dataset_v3.py" = ["E501"]
+"tests/evaluation/test_dataset_v4.py" = ["E501"]
+"tests/evaluation/test_dataset_v5.py" = ["E501"]
+"tests/evaluation/test_execution_v5_1.py" = ["E501"]
+"tests/evaluation/test_execution_v5_2.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["alembic/versions/"]
+
+[[tool.mypy.overrides]]
+module = ["asyncpg.*", "respx.*"]
+ignore_missing_imports = true

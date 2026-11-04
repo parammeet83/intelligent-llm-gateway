@@ -1,0 +1,56 @@
+# RouteWise benchmark pre-registration. Written BEFORE any live benchmark run (spec card S1-12:
+# "set a quality threshold before the experiment"). The runner stores this file's SHA-256 on every
+# run and refuses to start if the file is missing. Changing it after seeing results invalidates
+# the comparison; record any change as a new version with a reason.
+version: prereg-v1
+registered_on: 2026-11-04
+dataset: routewise_bench_v1
+
+strategies:
+  baseline_premium: Same gateway, every case forced to the premium tier (preferred_tier=premium).
+  routewise: Routing policy rw-2026.11-v1 as configured (selection = cheapest_capable).
+  routewise_tier_first: Same policy with selection = lowest_tier_first (carried issue 1).
+
+execution:
+  pairing: Strategies are interleaved per case (order alternates by case index), so time-of-day
+    effects and provider load affect all strategies alike.
+  temperature: 0
+  retries_and_fallbacks: Enabled for all strategies, exactly as in production.
+  tenant: A dedicated evaluation tenant with no budget (so budgets never change model choice).
+
+primary_metric: pass_rate
+primary_population: Cases scored deterministically. Cases flagged needs_human_review are scored
+  on their deterministic part and additionally listed for human review; they're excluded from
+  the primary metric until reviewed.
+
+quality_rule:
+  description: RouteWise is non-inferior on quality if its pass rate is no more than 5 percentage
+    points below the baseline's.
+  non_inferiority_margin: 0.05
+  also_report: Wilson 95% CIs per strategy, and a paired bootstrap 95% CI of the pass-rate
+    difference (RouteWise minus baseline). Non-inferiority is "supported" only if the lower bound
+    of that CI is above -0.05; otherwise "not shown", even if the point estimate passes.
+
+cost_rule:
+  description: Claim lower estimated cost only if (a) the quality rule's point estimate holds and
+    (b) RouteWise's estimated list cost per accepted answer is lower than the baseline's.
+  basis: Estimated list-price cost (shadow cost). Never presented as actual spend or savings.
+
+latency:
+  report: p50 and p95 end-to-end latency per strategy; per-case max_latency_ms violations.
+  informational_slo_p95_ms: 15000
+
+per_case_limits:
+  simple:   {max_cost_usd: "0.0005", max_latency_ms: 10000}
+  standard: {max_cost_usd: "0.002",  max_latency_ms: 15000}
+  complex:  {max_cost_usd: "0.005",  max_latency_ms: 30000}
+
+statistics:
+  bootstrap_resamples: 10000
+  bootstrap_seed: 20261104
+  note: 45 cases give low statistical power; a 5-point difference is within noise at this size.
+
+publication:
+  dataset_review_required: true
+  rule: Results may be published only after every case has reviewed_by set, and only from runs
+    with simulated=false. Simulated (mock) runs validate the pipeline and are never results.

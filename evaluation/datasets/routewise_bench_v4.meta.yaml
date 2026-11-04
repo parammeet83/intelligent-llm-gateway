@@ -1,0 +1,27 @@
+# Provenance for routewise_bench_v4.jsonl. v1, v2 and v3 (and their pre-registrations) are kept unchanged.
+dataset: routewise_bench_v4
+supersedes: routewise_bench_v3
+cases: 45            # 15 simple, 18 standard, 12 complex (IDs S01-S15, T01-T18, C01-C12)
+created_on: 2026-11-04
+authored_by: "AI-drafted (Claude) on 2026-11-04 at the project owner's request; revised from v3 after the owner's independent human review"
+status: draft-pending-human-review
+changelog: routewise_bench_v4.CHANGELOG.md
+review_pack: routewise_bench_v4_review.md
+
+license: "Written for this project. Public-exercise inputs found in v1 were removed in v2; originality beyond that is unverified."
+# No native-speaker or other linguistic validation has been performed for any case, including T17.
+linguistic_validation: none
+
+code_execution: false
+
+# The runner refuses to start if preregistration_routewise_bench_v4.yaml no longer matches this hash.
+preregistration_sha256: 0752a36358c2aebb2e4985bb3b188ea1b4406f9de2fa5f623b4e5b736219698a
+
+# Cases whose content differs from v3 (T03/T04: prompt only; the others: prompt and scoring).
+changed_from_v3: [T03, T04, T10, T17, C01, C03, C08, C09]
+
+# Human review (spec card S2-04). For each case, the reviewer checks that the prompt is unambiguous,
+# the expected answer is correct, and the scoring rule accepts all and only correct answers; then
+# records their name and date below. Results must not be published until every case is listed.
+reviewed_by: {}
+#   S01: {reviewer: "<name>", date: "YYYY-MM-DD", notes: ""}

@@ -1,0 +1,96 @@
+# RouteWise benchmark pre-registration for routewise_bench_v2. Written on 2026-11-04 BEFORE any run
+# of v2. No live benchmark of any dataset version has been run so far; the only benchmark execution
+# was a simulated (mock-provider) pipeline check on v1, whose output is not a result.
+#
+# This file's SHA-256 is pinned in routewise_bench_v2.meta.yaml, and the runner refuses to start if
+# they differ. Thresholds are therefore fixed before results exist. Any later change needs a NEW
+# pre-registration version with a written reason, recorded before the run it applies to. It must
+# never be edited after seeing results.
+version: prereg-v2
+registered_on: 2026-11-04
+supersedes: prereg-v1 (which stays registered for routewise_bench_v1)
+dataset: routewise_bench_v2
+dataset_sha256: 614e14497b380539baed24ad87f3619e11107d2adc35230004b652dec6994550
+
+changes_from_prereg_v1:
+  - Primary population is now all 45 cases. v2 has no code-execution cases (they weren't safely
+    isolatable) and no human-graded cases (C10 was replaced by an objective task).
+  - Added a baseline quality floor, a run-validity rule and a secondary per-difficulty rule (below).
+  - Added a scope statement on what the comparison measures (model sizes within one family).
+
+strategies:
+  baseline_premium: Same gateway, every case forced to the premium tier (preferred_tier=premium).
+  routewise: Routing policy as configured at run time (selection = cheapest_capable).
+  routewise_tier_first: Same policy with selection = lowest_tier_first.
+
+scope:
+  model_families: >-
+    With the providers currently configured, every enabled Groq model is OpenAI GPT-OSS:
+    gpt-oss-20b serves the small tier and gpt-oss-120b the premium tier, and there is no
+    medium-tier model. A live run therefore compares two sizes of one model family, not
+    independent families. Reports must say so, and must not generalise results to
+    "small vs large models" in general.
+  premium_meaning: '"Premium" means the best free model available, not a frontier model.'
+
+execution:
+  pairing: Strategies are interleaved per case (order alternates by case index), so time-of-day
+    effects and provider load affect all strategies alike.
+  temperature: 0
+  retries_and_fallbacks: Enabled for all strategies, exactly as in production.
+  tenant: A dedicated evaluation tenant with no budget (so budgets never change model choice).
+  code_execution: none (the dataset contains no code-execution cases; --allow-code-exec is irrelevant).
+
+primary_metric: pass_rate
+primary_population: All 45 cases, each scored deterministically by its scoring rule.
+
+run_validity:
+  min_answered_fraction: 0.95
+  rule: A run is valid only if, for every strategy, at least 43 of 45 cases (95%) returned a model
+    answer. Provider errors, timeouts and rate-limit failures count as missing, not as quality
+    failures. An invalid run is reported as "incomplete" and is not used for any claim.
+    It may be repeated in full, but not cherry-picked case by case.
+
+baseline_floor:
+  rule: If baseline_premium's pass rate is below 0.60, the comparison is declared "uninformative"
+    (the benchmark or scorers, not routing, would be the limiting factor), and no
+    non-inferiority claim is made either way.
+  floor: 0.60
+
+quality_rule:
+  description: RouteWise is non-inferior on quality if its pass rate is no more than 5 percentage
+    points below the baseline's.
+  non_inferiority_margin: 0.05
+  also_report: Wilson 95% CIs per strategy, and a paired bootstrap 95% CI of the pass-rate
+    difference (RouteWise minus baseline). Non-inferiority is "supported" only if the lower bound
+    of that CI is above -0.05; otherwise "not shown", even if the point estimate passes.
+
+secondary_rules:
+  per_difficulty: Report the pass-rate difference per difficulty (15 / 18 / 12 cases). This is
+    descriptive only. No claim is made from a single difficulty group, because the groups are
+    too small for any CI to be informative.
+
+cost_rule:
+  description: Claim lower estimated cost only if (a) the quality rule's point estimate holds and
+    (b) RouteWise's estimated list cost per accepted answer is lower than the baseline's.
+  basis: Estimated list-price cost (shadow cost). Never presented as actual spend or savings.
+
+latency:
+  report: p50 and p95 end-to-end latency per strategy; per-case max_latency_ms violations.
+  informational_slo_p95_ms: 15000
+
+per_case_limits:
+  simple:   {max_cost_usd: "0.0005", max_latency_ms: 10000}
+  standard: {max_cost_usd: "0.002",  max_latency_ms: 15000}
+  complex:  {max_cost_usd: "0.005",  max_latency_ms: 30000}
+
+statistics:
+  bootstrap_resamples: 10000
+  bootstrap_seed: 20261104
+  note: 45 cases give low statistical power; a 5-point difference is about 2 cases and within
+    noise at this size.
+
+publication:
+  dataset_review_required: true
+  rule: Results may be published only after every case has reviewed_by set by the project owner,
+    and only from runs with simulated=false. Simulated (mock) runs validate the pipeline and are
+    never results.

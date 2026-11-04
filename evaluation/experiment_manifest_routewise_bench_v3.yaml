@@ -1,0 +1,141 @@
+# Experiment manifest for routewise_bench_v3. Pre-registered: its SHA-256 is recorded in
+# preregistration_routewise_bench_v3.yaml. Do not edit; create a new manifest version and a new
+# pre-registration (before any run) if the configuration has to change.
+manifest: experiment-manifest-routewise_bench_v3-1
+created_on: '2026-11-04'
+dataset: routewise_bench_v3
+dataset_sha256: c0c58c306cd18671e70e40aeab7bbae8672428369bbbe2cbb140144bc61119c7
+notes:
+- 'Intended live configuration: Groq only (Free plan); OpenRouter, Ollama and mock disabled.'
+- The runner rebuilds `pinned` from the live configuration before any network call and refuses to run
+  on any difference.
+- File hashes are SHA-256 over LF-normalised text. Code is uncommitted, so file hashes (not a git commit)
+  identify the code version.
+- No secrets are recorded. Settings values below are non-secret execution parameters.
+pinned:
+  files:
+    routing_policy:
+      path: backend/config/routing_policy.yaml
+      sha256: 271106eaa7116211cc198ef5eddc8205f2e3b38e32e7d5fb6ceb37f3a0bb48dc
+    model_registry:
+      path: backend/config/models.yaml
+      sha256: c5fc037793d0e80bf4dc9568a137dd7587229f3f14adc83a1bb48af9c7cc7dd0
+    scorers:
+      path: backend/app/evaluation/scorers.py
+      sha256: 234f6759d9c9bc7c8a87286b14cb5abd03fb152cd4eeee910a4727adc1e4cb0d
+    report:
+      path: backend/app/evaluation/report.py
+      sha256: 72751f250c44049d7aeecedf92cb458c5141265dc9693992df0d738de5a57dd7
+    runner:
+      path: backend/app/evaluation/runner.py
+      sha256: 78dc50e6359dada82bcf3dd4e2480f4d315e6839ad45ce958a173c1a53c78c7d
+    dataset_loader:
+      path: backend/app/evaluation/dataset.py
+      sha256: a82653c6b23d133c8638a21fb28e5dc7a374ee8324401e0cb493bf3a9c0a862b
+  routing_policy:
+    version: rw-2026.11-v1
+    tier_thresholds:
+      medium: 35.0
+      premium: 65.0
+    task_type_priors:
+      classification: 5.0
+      extraction: 15.0
+      chat: 15.0
+      qa: 20.0
+      summarization: 25.0
+      creative: 30.0
+      code: 45.0
+      reasoning: 50.0
+    weights:
+      input_tokens_per_1k: 3.0
+      input_tokens_max: 15.0
+      output_over_1024: 6.0
+      output_over_4096: 12.0
+      json_output: 5.0
+      multi_step_per_match: 4.0
+      multi_step_max: 12.0
+      constraint_per_match: 2.0
+      constraint_max: 8.0
+      reasoning_per_match: 6.0
+      reasoning_max: 18.0
+      math_per_match: 4.0
+      math_max: 12.0
+      code_block: 10.0
+    high_quality_floor: premium
+    selection: cheapest_capable
+    fallback_only_providers:
+    - openrouter
+    latency:
+      min_samples: 5
+    budget:
+      input_estimate_safety_factor: 1.25
+  models:
+  - key: groq/openai/gpt-oss-20b
+    provider: groq
+    provider_model_id: openai/gpt-oss-20b
+    tier: small
+    billing: free
+    capabilities:
+    - json_mode
+    - json_schema
+    - reasoning
+    reasoning_effort: low
+    timeout_s: null
+    verified_on: '2026-11-04'
+    pricing:
+      input_usd_per_mtok: '0.075'
+      output_usd_per_mtok: '0.30'
+      effective_date: '2026-11-03'
+      source_url: https://console.groq.com/docs/models
+  - key: groq/openai/gpt-oss-120b
+    provider: groq
+    provider_model_id: openai/gpt-oss-120b
+    tier: premium
+    billing: free
+    capabilities:
+    - json_mode
+    - json_schema
+    - reasoning
+    reasoning_effort: null
+    timeout_s: null
+    verified_on: '2026-11-04'
+    pricing:
+      input_usd_per_mtok: '0.15'
+      output_usd_per_mtok: '0.60'
+      effective_date: '2026-11-03'
+      source_url: https://console.groq.com/docs/models
+  expected_models:
+  - groq/openai/gpt-oss-120b
+  - groq/openai/gpt-oss-20b
+  providers:
+    groq:
+      simulated: false
+      charge_basis: free_tier
+      max_retries: 1
+  execution:
+    request_deadline_s: 60.0
+    provider_timeout_s: 30.0
+    retry_backoff_base_s: 0.5
+    retry_backoff_cap_s: 4.0
+    circuit_failure_threshold: 3
+    circuit_open_s: 30.0
+    allow_paid_models: false
+    verify_model_catalog: true
+    groq_enabled: true
+    groq_billing_plan: free
+    openrouter_enabled: false
+    ollama_enabled: false
+    mock_provider_enabled: false
+    temperature: 0.0
+    strategies:
+      baseline_premium:
+        policy_overrides: {}
+        request_overrides:
+          preferred_tier: premium
+      routewise:
+        policy_overrides: {}
+        request_overrides: {}
+      routewise_tier_first:
+        policy_overrides:
+          selection: lowest_tier_first
+        request_overrides: {}

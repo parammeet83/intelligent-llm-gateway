@@ -1,0 +1,34 @@
+# Provenance for routewise_bench_v2.jsonl. v1 (routewise_bench_v1.jsonl) is kept unchanged.
+dataset: routewise_bench_v2
+supersedes: routewise_bench_v1
+cases: 45            # 15 simple, 18 standard, 12 complex (IDs S01-S15, T01-T18, C01-C12)
+created_on: 2026-11-04
+authored_by: "AI-drafted (Claude) on 2026-11-04 at the project owner's request; revised from v1 after the owner-approved review (routewise_bench_v1_review.md)"
+status: draft-pending-human-review
+changelog: routewise_bench_v2.CHANGELOG.md
+review_pack: routewise_bench_v2_review.md
+
+# Originality is stated only as far as it was checked (see the changelog for sources):
+# - v1 cases T09, C03, C04 and C05 used test inputs identical to public LeetCode examples (problems
+#   125, 56, 13, 692), confirmed by web search on 2026-11-04. They are removed from v2.
+# - The 12 new v2 cases were written for this dataset. Their distinctive wording was not exhaustively
+#   searched against public sources, so no stronger originality claim is made.
+# - The remaining cases were not individually searched. They're generic task types (sentiment,
+#   extraction, arithmetic) that may resemble public examples by chance.
+license: "Written for this project. Public-exercise inputs found in v1 were removed; originality beyond that is unverified."
+
+# v2 contains no code-execution cases: model-generated code can't be isolated safely on the
+# operator's machine (no OS sandbox). The loader refuses any 'code' case while this is false.
+code_execution: false
+
+# The runner refuses to start if preregistration_routewise_bench_v2.yaml no longer matches this hash.
+preregistration_sha256: d90fb48cc1e62fe0a1bfa709b5acff85e39a12d56072ba4b63c33607f07b945f
+
+# Cases copied byte-for-byte from v1 (same ID, prompt, expected and scoring).
+unchanged_from_v1: [S01, S04, S06, S08, S11, S13, S15, T01, T13, T16, C01, C07, C12]
+
+# Human review (spec card S2-04). For each case, the reviewer checks that the prompt is unambiguous,
+# the expected answer is correct, and the scoring rule accepts all and only correct answers; then
+# records their name and date below. Results must not be published until every case is listed.
+reviewed_by: {}
+#   S01: {reviewer: "<name>", date: "YYYY-MM-DD", notes: ""}

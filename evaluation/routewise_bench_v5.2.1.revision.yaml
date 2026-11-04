@@ -1,0 +1,23 @@
+# Revision routewise_bench_v5.2.1: the root of its hash chain. A scoring amendment of execution
+# revision routewise_bench_v5.2 (kept unchanged; refused at run time) for the UNCHANGED dataset
+# routewise_bench_v5. Select it with `--revision routewise_bench_v5.2.1`.
+revision: routewise_bench_v5.2.1
+kind: scoring-amendment
+created_on: 2026-11-04
+registered_at_utc: '2026-11-04T14:22:54Z'
+supersedes: routewise_bench_v5.2
+amends_revision:
+  name: routewise_bench_v5.2
+  file: routewise_bench_v5.2.revision.yaml
+  sha256: 59257813e1093d512f0f6fb6459e8ee40aebede789d55908f661dca4bb06d347
+dataset: routewise_bench_v5
+dataset_sha256: 76a4d1906b3e90bff6ed504f67067bf891923332fa00256227e303c11dea27bd
+scoring_amendment:
+  file: scoring_amendment_routewise_bench_v5.2.1.yaml
+  sha256: bab04a1a24f2f7d52538d49472edd52579ce08ded0ed10460225498b4a4c8431
+preregistration:
+  file: preregistration_routewise_bench_v5.2.1.yaml
+  sha256: 2a78174bc1ebd7ea78e692d31ca1097623dd6edd144416a486fcdc15f5db9070
+changelog: datasets/routewise_bench_v5.2.1.CHANGELOG.md
+review_report: datasets/routewise_bench_v5.2.1_review_report.md
+status: draft-pending-human-review

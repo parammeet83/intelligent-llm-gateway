@@ -1,0 +1,62 @@
+# RouteWise routing policy. Changing any value here requires bumping `version`.
+#
+# This is a hand-tuned, deterministic heuristic, not a learned or optimal policy. The weights
+# are starting values and the evaluation benchmark (Phase 4) is what judges them.
+version: rw-2026.11-v1
+
+# Score 0-100 -> tier. score < medium -> small; score < premium -> medium; else premium.
+tier_thresholds:
+  medium: 35
+  premium: 65
+
+# Starting points per declared task type, before prompt features are added.
+task_type_priors:
+  classification: 5
+  extraction: 15
+  chat: 15
+  qa: 20
+  summarization: 25
+  creative: 30
+  code: 45
+  reasoning: 50
+
+weights:
+  # Points per 1,000 estimated input tokens, capped.
+  input_tokens_per_1k: 3
+  input_tokens_max: 15
+  # Requested output length.
+  output_over_1024: 6
+  output_over_4096: 12
+  json_output: 5
+  # Pattern families (see app/routing/features.py): points per match, capped.
+  multi_step_per_match: 4
+  multi_step_max: 12
+  constraint_per_match: 2
+  constraint_max: 8
+  reasoning_per_match: 6
+  reasoning_max: 18
+  math_per_match: 4
+  math_max: 12
+  code_block: 10
+
+# quality=high is treated as high-stakes: premium tier at minimum (spec card S1-03).
+high_quality_floor: premium
+
+# How eligible models (tier >= required) are ordered:
+#   cheapest_capable   - lowest worst-case list cost first; tier is only a floor (may escalate)
+#   lowest_tier_first  - the required tier itself first, then cost; higher tiers only as fallback
+# Complexity scoring decides the required tier either way; this only changes economic ranking.
+# The benchmark compares both (Phase 4).
+selection: cheapest_capable
+
+# Providers ranked after every primary-provider candidate, whatever their price. OpenRouter's
+# free allowance is 50 requests/day, so it serves as a limited fallback, not a primary route.
+fallback_only_providers: [openrouter]
+
+latency:
+  # Observed p95 is only trusted after this many successful calls to a model.
+  min_samples: 5
+
+budget:
+  # Input tokens are estimated (~4 chars/token); inflate them for worst-case cost checks.
+  input_estimate_safety_factor: 1.25

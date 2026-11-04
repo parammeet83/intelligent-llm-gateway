@@ -1,0 +1,29 @@
+# Revision routewise_bench_v5.2.2: the root of its hash chain. An administrative publication-gate
+# amendment of routewise_bench_v5.2.1 (kept unchanged; refused at run time) for the UNCHANGED dataset
+# routewise_bench_v5. Select it with `--revision routewise_bench_v5.2.2`.
+revision: routewise_bench_v5.2.2
+kind: publication-gate-amendment
+created_on: 2026-11-04
+registered_at_utc: '2026-11-04T17:03:15Z'
+supersedes: routewise_bench_v5.2.1
+amends_revision:
+  name: routewise_bench_v5.2.1
+  file: routewise_bench_v5.2.1.revision.yaml
+  sha256: 42666d44eddac1a1b9395384ba92183be0f7025ac91d867e7261b64af265a6e7
+dataset: routewise_bench_v5
+dataset_sha256: 76a4d1906b3e90bff6ed504f67067bf891923332fa00256227e303c11dea27bd
+dataset_metadata:
+  file: datasets/routewise_bench_v5.meta.yaml
+  sha256: 262dde03c4018fe1f79c1fe8760f32cfcce3e1624284ea6b56eafed432806ada
+scoring_amendment:
+  file: scoring_amendment_routewise_bench_v5.2.1.yaml
+  sha256: bab04a1a24f2f7d52538d49472edd52579ce08ded0ed10460225498b4a4c8431
+review_attestation:
+  file: reviews/routewise_bench_v5.2.1_HUMAN_REVIEW_ATTESTATION.yaml
+  sha256: b7099444ac312eef336ebacbdb6e93335ba366f9de452be88cb17a97524c59ed
+preregistration:
+  file: preregistration_routewise_bench_v5.2.2.yaml
+  sha256: 2c8f76fbd3d6fa498d2922ee732481e0ea3f96e567d023228af403b972203b73
+changelog: datasets/routewise_bench_v5.2.2.CHANGELOG.md
+review_report: datasets/routewise_bench_v5.2.2_review_report.md
+status: owner-reviewed-via-attestation

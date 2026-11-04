@@ -1,0 +1,161 @@
+# RouteWise benchmark pre-registration for routewise_bench_v4 (prereg-v4). Written on 2026-11-04
+# BEFORE any run of v4. No live benchmark of any dataset version has been run; the only benchmark
+# execution so far was a simulated (mock-provider) pipeline check on v1, which is not a result.
+#
+# Pinning chain: routewise_bench_v4.meta.yaml pins this file's SHA-256. This file pins the dataset
+# and the experiment manifest (schema 2), and the manifest pins configuration, code and pacing.
+# The runner and `eval-run` refuse to start, before any network call, if any link or the live
+# configuration (including --delay-s, --limit and --allow-code-exec) differs. Any change needs a NEW
+# pre-registration version recorded before the run. prereg-v1, -v2 and -v3 are unchanged.
+version: prereg-v4
+registered_on: 2026-11-04
+supersedes: prereg-v3 (which stays registered for routewise_bench_v3)
+dataset: routewise_bench_v4
+dataset_sha256: 715830467f26d833142b073497f2f7fd47cca0f9fa11cc2f7feabc5773987016
+
+experiment_manifest:
+  file: experiment_manifest_routewise_bench_v4.yaml
+  sha256: 4817aee4d71bc15e8fb6d8b3150fb840fab1a6b845694181e9f1d3b82f53c0c3
+  covers: >-
+    Schema 2. LF-normalised SHA-256 of every execution-critical module: routing engine, features
+    and config; provider interface; HTTP adapter including token-usage extraction; the Groq
+    adapter; executor (retries, backoff, fallbacks, budget cap); gateway pipeline and factory;
+    health and circuit breaker; cost and budget accounting; rate limiting; API schemas; settings;
+    the model-catalog loader and provider registry; and all evaluation code (scorers, report,
+    runner, dataset loader, statistics, manifest). Also the routing policy and model registry
+    files, the full policy including weights, each enabled model's provider model ID, tier,
+    reasoning effort and pricing snapshot, provider retry and charge settings, execution settings,
+    temperature, strategies, and pacing.
+  pacing: >-
+    concurrency 1 (strictly sequential), delay_s 6.0 after every request, no case limit, no code
+    execution. Chosen from Groq's published gpt-oss base limits (30 RPM, 8K TPM), not measured.
+  rule: A run whose live configuration or pacing differs from the manifest in any field is
+    refused before any network call. Any answering model not in `expected_models` invalidates the
+    run.
+
+changes_from_prereg_v3:
+  - Baseline semantics verified and enforced (baseline_tier_guard); the name is kept because
+    premium-only generation is guaranteed (see strategies.baseline_premium).
+  - Pass rates are explicitly conditional on an answer being returned; answer availability is a
+    separate per-strategy metric.
+  - Every strategy reports the answering model (as reported by the provider) and every attempt.
+  - The manifest covers all execution-critical code and pins pacing and concurrency.
+
+strategies:
+  baseline_premium: >-
+    Every case requested with preferred_tier=premium. Premium-only generation is GUARANTEED by
+    construction: the tier floor raises the required tier to premium, allow_downgrade is never
+    set, the router excludes every lower-tier model (TIER_TOO_LOW), and the executor only calls
+    the decision's eligible models. Retries and fallbacks are therefore premium-tier only. Under
+    the manifest that is exactly one model (groq/openai/gpt-oss-120b), so a failed premium call
+    is a missing answer, never a lower-tier answer. The report also verifies every recorded
+    baseline attempt is premium-tier (baseline_tier_guard) and invalidates the run otherwise.
+  routewise: Routing policy as pinned in the manifest (selection = cheapest_capable).
+  routewise_tier_first: Same policy with selection = lowest_tier_first.
+
+baseline_tier_guard: premium_only
+
+scope:
+  model_families: >-
+    Every pinned model is OpenAI GPT-OSS on Groq: gpt-oss-20b serves the small tier and
+    gpt-oss-120b the premium tier, and there is no medium-tier model. The comparison is between
+    two sizes of one model family, not independent model families.
+  premium_meaning: '"Premium" means the best free model available, not a frontier model.'
+  generalisation: >-
+    Results apply only to this fixed 45-case benchmark suite (routewise_bench_v4, at the SHA-256
+    above), under the pinned configuration, providers, pacing and run date. They cannot establish
+    general quality, cost or latency performance on production workloads, other prompts, other
+    tenants' traffic, other models or providers, or later dates. Reports must state this
+    alongside any result.
+
+execution:
+  pairing: Strategies are interleaved per case (order alternates by case index), so time-of-day
+    effects and provider load affect all strategies alike.
+  temperature: 0
+  retries_and_fallbacks: As pinned in the manifest (Groq max_retries 1; fallbacks limited to the
+    decision's eligible models).
+  tenant: A dedicated evaluation tenant with no budget (so budgets never change model choice).
+  code_execution: none.
+  concurrency: 1
+  delay_s: 6.0
+
+reporting:
+  per_case: For every strategy and case, the report records the answering model as reported by
+    the provider (`answer_model`), the registry model and tier, and every attempt (provider, model,
+    tier, reason code, status, error code, latency), including attempts of failed requests.
+  per_strategy: Answer availability (`answered`, `answer_rate`, `failures`, `failure_codes`) is
+    reported separately from quality. Quality is reported as `pass_rate` (basis
+    `conditional_on_answer_returned`), with `pass_rate_unconditional` (passes over all cases)
+    alongside for transparency. It also reports answering-model, attempted-model and
+    attempt-status distributions.
+  labelling: Any pass rate quoted outside the report must be labelled "conditional on an answer
+    being returned" and quoted together with that strategy's answer rate.
+
+primary_metric: pass_rate (conditional on an answer being returned)
+primary_population: All 45 cases, each scored deterministically by its scoring rule. A case whose
+  request returned no answer is missing, not failed, and is counted in answer availability.
+
+run_validity:
+  min_answered_fraction: 0.95
+  provider_errors: missing
+  rule: A run is valid only if, for every strategy, at least 43 of 45 cases (95%) returned a model
+    answer. Provider errors, timeouts and rate-limit failures are excluded from the pass-rate
+    denominator and from the paired comparison. An invalid run is reported as "incomplete" and is
+    not used for any claim. It may be repeated in full, but not cherry-picked case by case. A run
+    is also invalid if any answer came from a model outside the manifest, or if any baseline
+    attempt was outside the premium tier.
+
+baseline_floor:
+  rule: If baseline_premium's conditional pass rate is below 0.60, the comparison is declared
+    "uninformative" and no non-inferiority or cost claim is made either way.
+  floor: 0.60
+
+quality_rule:
+  description: RouteWise is non-inferior on quality if its conditional pass rate is no more than
+    5 percentage points below the baseline's.
+  non_inferiority_margin: 0.05
+  also_report: Wilson 95% CIs per strategy, and a paired bootstrap 95% CI of the pass-rate
+    difference (RouteWise minus baseline) over cases answered by both strategies.
+    Non-inferiority is "supported" only if the lower bound of that CI is above -0.05; otherwise
+    "not shown", even if the point estimate passes.
+
+secondary_rules:
+  per_difficulty: Report the pass-rate difference per difficulty (15 / 18 / 12 cases). This is
+    descriptive only; no claim is made from a single difficulty group.
+
+cost_rule:
+  description: A lower-cost claim is allowed only if ALL of these hold. (a) Quality
+    non-inferiority is SUPPORTED by the paired bootstrap CI. (b) RouteWise's estimated list cost
+    per accepted answer is lower than the baseline's. (c) Neither strategy has any unknown cost
+    observation. (d) The run is valid and the baseline floor is met.
+  requires_ci_supported_non_inferiority: true
+  unknown_cost_observations: block
+  unknown_cost_definition: An unknown cost observation is any request whose estimated list cost
+    is unavailable. That includes an answered request with list_cost_status "unavailable", and
+    every request that returned no answer. Unknown cost is never treated as zero, never imputed,
+    and never silently dropped; any non-zero count blocks the cost claim.
+  basis: Estimated list-price cost (shadow cost). Never presented as actual spend or savings. Actual
+    charges on Groq's Free plan are $0.
+
+latency:
+  report: p50 and p95 end-to-end latency per strategy (answered requests); per-case
+    max_latency_ms violations.
+  informational_slo_p95_ms: 15000
+
+per_case_limits:
+  simple:   {max_cost_usd: "0.0005", max_latency_ms: 10000}
+  standard: {max_cost_usd: "0.002",  max_latency_ms: 15000}
+  complex:  {max_cost_usd: "0.005",  max_latency_ms: 30000}
+
+statistics:
+  bootstrap_resamples: 10000
+  bootstrap_seed: 20261104
+  note: 45 cases give low statistical power; a 5-point difference is about 2 cases and within
+    noise at this size.
+
+publication:
+  dataset_review_required: true
+  rule: Results may be published only after every case has reviewed_by set by the project owner,
+    only from runs with simulated=false, and only together with the scope statements, the
+    conditional-pass-rate label and each strategy's answer rate. Simulated (mock) runs validate the
+    pipeline and are never results.

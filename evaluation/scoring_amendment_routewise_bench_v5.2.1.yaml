@@ -1,0 +1,59 @@
+# Scoring amendment for execution revision routewise_bench_v5.2.1 of the UNCHANGED dataset
+# routewise_bench_v5. It replaces the scoring spec of exactly three cases at run time; the dataset
+# file is not modified. Each entry names the case's original spec, which must match the dataset
+# exactly, and the amended spec. Pinned by preregistration_routewise_bench_v5.2.1.yaml. Do not edit.
+amendment: scoring-amendment-routewise_bench_v5.2.1
+revision: routewise_bench_v5.2.1
+created_on: '2026-11-04'
+created_at_utc: '2026-11-04T14:22:54Z'
+dataset: routewise_bench_v5
+dataset_sha256: 76a4d1906b3e90bff6ed504f67067bf891923332fa00256227e303c11dea27bd
+amends_revision:
+  name: routewise_bench_v5.2
+  file: routewise_bench_v5.2.revision.yaml
+  sha256: 59257813e1093d512f0f6fb6459e8ee40aebede789d55908f661dca4bb06d347
+basis: Conditional approvals from the project owner's human review of the dataset, recorded outside this
+  repository. This file is not a sign-off and does not mark any case reviewed.
+cases:
+  S15:
+    condition: age must be a JSON integer
+    effect: 'Adds field_types {age: integer}. 34.0, "34", 3.4e1 and true now fail; 34 still passes.'
+    original_scoring:
+      method: json
+      expected_subset:
+        name: Priya
+        age: 34
+    amended_scoring:
+      method: json
+      expected_subset:
+        name: Priya
+        age: 34
+      field_types:
+        age: integer
+  T11:
+    condition: number-only output; currency symbols are not allowed
+    effect: currency_symbols becomes [] (was ["$"]), so "$33" fails; the strict number-only rule is unchanged.
+    original_scoring:
+      method: numeric
+      answer: 33
+      tolerance: 0.001
+      strict_number: true
+      currency_symbols:
+      - $
+    amended_scoring:
+      method: numeric
+      answer: 33
+      tolerance: 0.001
+      strict_number: true
+      currency_symbols: []
+  C12:
+    condition: strict HH:MM time format
+    effect: 'Validator meeting_schedule_hhmm: every start must be a JSON string matching HH:MM (ASCII
+      digits, 00-23:00-59); the schedule constraints are unchanged.'
+    original_scoring:
+      method: validator
+      name: meeting_schedule
+    amended_scoring:
+      method: validator
+      name: meeting_schedule_hhmm
+unchanged: Every other case's scoring spec is used exactly as written in the dataset file.

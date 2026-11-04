@@ -1,0 +1,252 @@
+# RouteWise model registry.
+#
+# Rules:
+# - Every real model needs `verified_on` and `source_url` pointing at the provider's official docs.
+# - `pricing` holds a published pay-as-you-go LIST price, used only for the shadow (estimated) cost.
+#   It is not what a free-tier call actually costs. No `pricing` = no published price: the model is
+#   excluded from strictly budgeted requests rather than being treated as $0.
+# - `billing: paid` models are rejected while ALLOW_PAID_MODELS is false (always, in this project).
+# - Tiers reflect capability, not price. Routing picks the cheapest eligible model at or above the
+#   tier a request needs.
+# - A model is only used if its provider is enabled in .env and (when the provider publishes a
+#   model list) it appears in that live list at startup.
+# - Mock models are `simulated: true`, and so are their prices. They exist for dev and tests only.
+
+models:
+  # --- Groq (https://console.groq.com/docs/models, verified 2026-11-04) ----------------------
+  # Groq's Free plan is $0; list prices below are Groq's published on-demand (Developer) prices.
+  - provider: groq
+    model_id: llama-3.1-8b-instant
+    display_name: Llama 3.1 8B Instant (Groq)
+    tier: small
+    billing: free
+    context_window: 131072
+    max_output_tokens: 131072
+    capabilities: [json_mode]
+    enabled: false  # retired: see notes
+    verified_on: 2026-11-04
+    source_url: https://console.groq.com/docs/deprecations
+    notes: >-
+      Shut down 2026-08-16 per Groq's deprecations page (replacement openai/gpt-oss-20b). A live
+      call on 2026-11-04 returned 404 model_not_found. Price was "Contact Sales" (no list price).
+
+  - provider: groq
+    model_id: llama-3.3-70b-versatile
+    display_name: Llama 3.3 70B Versatile (Groq)
+    tier: medium
+    billing: free
+    context_window: 131072
+    max_output_tokens: 32768
+    capabilities: [json_mode]
+    enabled: false  # retired: see notes
+    verified_on: 2026-11-04
+    source_url: https://console.groq.com/docs/deprecations
+    notes: >-
+      Shut down 2026-08-16 per Groq's deprecations page (replacements openai/gpt-oss-120b or
+      qwen/qwen3.6-27b). Price was "Contact Sales" (no list price).
+
+  - provider: groq
+    model_id: openai/gpt-oss-20b
+    display_name: GPT-OSS 20B (Groq)
+    # Small-tier Groq model since the Llama 3.1 8B shutdown (Groq's named replacement). It is
+    # a reasoning model: low effort keeps hidden reasoning from eating small output limits.
+    tier: small
+    billing: free
+    context_window: 131072
+    max_output_tokens: 65536
+    capabilities: [json_mode, json_schema, reasoning]
+    reasoning_effort: low
+    verified_on: 2026-11-04
+    source_url: https://console.groq.com/docs/models
+    pricing:
+      input_usd_per_mtok: "0.075"
+      output_usd_per_mtok: "0.30"
+      effective_date: 2026-11-03
+      source_url: https://console.groq.com/docs/models
+      notes: Page shows no effective date; this is the date first observed. Re-checked unchanged 2026-11-04.
+
+  - provider: groq
+    model_id: openai/gpt-oss-120b
+    display_name: GPT-OSS 120B (Groq)
+    tier: premium
+    billing: free
+    context_window: 131072
+    max_output_tokens: 65536
+    capabilities: [json_mode, json_schema, reasoning]
+    verified_on: 2026-11-04
+    source_url: https://console.groq.com/docs/models
+    pricing:
+      input_usd_per_mtok: "0.15"
+      output_usd_per_mtok: "0.60"
+      effective_date: 2026-11-03
+      source_url: https://console.groq.com/docs/models
+      notes: Page shows no effective date; this is the date first observed. Re-checked unchanged 2026-11-04.
+
+  - provider: groq
+    model_id: qwen/qwen3.8-27b
+    display_name: Qwen3.8 27B (Groq, preview)
+    tier: premium
+    billing: free
+    context_window: 131072
+    max_output_tokens: 16384
+    capabilities: [json_mode, json_schema]
+    enabled: false  # preview models can be removed at short notice
+    preview: true
+    verified_on: 2026-11-03
+    source_url: https://console.groq.com/docs/models
+    pricing:
+      input_usd_per_mtok: "0.80"
+      output_usd_per_mtok: "4.00"
+      effective_date: 2026-11-03
+      source_url: https://console.groq.com/docs/models
+
+  # --- OpenRouter free variants (catalog https://openrouter.ai/api/v1/models, 2026-11-03) ------
+  # The `:free` variant is priced at $0. The list price is the published price of the same
+  # model's paid variant on OpenRouter, used only as a shadow cost.
+  - provider: openrouter
+    model_id: liquid/lfm-2.5-2.6b:free
+    display_name: LFM 2.5 2.6B (OpenRouter free)
+    tier: small
+    billing: free
+    context_window: 65536
+    max_output_tokens: 8192
+    capabilities: [json_mode]
+    verified_on: 2026-11-03
+    source_url: https://openrouter.ai/liquid/lfm-2.5-2.6b:free
+    pricing:
+      input_usd_per_mtok: "0.35"
+      output_usd_per_mtok: "0.50"
+      effective_date: 2026-11-03
+      source_url: https://openrouter.ai/liquid/lfm-2.5-2.6b
+      notes: Paid variant's list price.
+
+  - provider: openrouter
+    model_id: google/gemma-4-26b-a4b-it:free
+    display_name: Gemma 4 26B A4B (OpenRouter free)
+    tier: medium
+    billing: free
+    context_window: 262144
+    max_output_tokens: 32768
+    capabilities: [json_mode]
+    verified_on: 2026-11-03
+    source_url: https://openrouter.ai/google/gemma-4-26b-a4b-it:free
+    pricing:
+      input_usd_per_mtok: "0.077"
+      output_usd_per_mtok: "0.232"
+      effective_date: 2026-11-03
+      source_url: https://openrouter.ai/google/gemma-4-26b-a4b-it
+      notes: Paid variant's list price.
+
+  - provider: openrouter
+    model_id: google/gemma-4-31b-it:free
+    display_name: Gemma 4 31B (OpenRouter free)
+    tier: medium
+    billing: free
+    context_window: 262144
+    max_output_tokens: 32768
+    capabilities: [json_mode]
+    verified_on: 2026-11-03
+    source_url: https://openrouter.ai/google/gemma-4-31b-it:free
+    pricing:
+      input_usd_per_mtok: "0.20"
+      output_usd_per_mtok: "0.40"
+      effective_date: 2026-11-03
+      source_url: https://openrouter.ai/google/gemma-4-31b-it
+      notes: Paid variant's list price.
+
+  - provider: openrouter
+    model_id: nvidia/nemotron-3-ultra-550b-a55b:free
+    display_name: Nemotron 3 Ultra 550B (OpenRouter free)
+    tier: premium
+    billing: free
+    context_window: 1000000
+    max_output_tokens: 65536
+    capabilities: [reasoning]  # catalog lists no response_format support
+    verified_on: 2026-11-03
+    source_url: https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b:free
+    pricing:
+      input_usd_per_mtok: "0.60"
+      output_usd_per_mtok: "2.40"
+      effective_date: 2026-11-03
+      source_url: https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b
+      notes: Paid variant's list price.
+
+  - provider: openrouter
+    model_id: nvidia/nemotron-3.5-super-vl:free
+    display_name: Nemotron 3.5 Super VL 120B-A12B (OpenRouter free)
+    tier: premium  # judgement: 120B-total MoE, same scale class as gpt-oss-120b
+    billing: free
+    context_window: 1000000
+    max_output_tokens: 131072
+    capabilities: [json_mode, json_schema, reasoning]  # catalog: response_format, structured_outputs
+    verified_on: 2026-11-04
+    source_url: https://openrouter.ai/nvidia/nemotron-3.5-super-vl:free
+    pricing:
+      input_usd_per_mtok: "0.15"
+      output_usd_per_mtok: "0.50"
+      effective_date: 2026-11-03
+      source_url: https://openrouter.ai/nvidia/nemotron-3.5-super-vl
+      notes: Paid variant's list price. Added as the JSON-capable premium fallback.
+
+  # --- Ollama (local only; model must be pulled: `ollama pull qwen2.5:1.5b`) ----------------
+  - provider: ollama
+    model_id: qwen2.5:1.5b
+    display_name: Qwen2.5 1.5B (local Ollama)
+    tier: small
+    billing: free
+    context_window: 32768
+    max_output_tokens: 8192
+    capabilities: [json_mode]
+    verified_on: 2026-11-03
+    source_url: https://ollama.com/library/qwen2.5
+    timeout_s: 120  # CPU inference on an 8 GB laptop is slow
+    notes: Local compute has no market price; list cost is unavailable.
+
+  # --- Mock (simulated; dev and tests only) ---------------------------------------------------
+  - provider: mock
+    model_id: mock-small
+    display_name: Mock Small (simulated)
+    tier: small
+    billing: free
+    context_window: 8192
+    max_output_tokens: 1024
+    capabilities: [json_mode]
+    simulated: true
+    pricing:
+      input_usd_per_mtok: "0.05"
+      output_usd_per_mtok: "0.10"
+      effective_date: 2026-11-03
+      source_url: "simulated://routewise/mock-pricing"
+      simulated: true
+
+  - provider: mock
+    model_id: mock-medium
+    display_name: Mock Medium (simulated)
+    tier: medium
+    billing: free
+    context_window: 32768
+    max_output_tokens: 2048
+    capabilities: [json_mode]
+    simulated: true
+    pricing:
+      input_usd_per_mtok: "0.30"
+      output_usd_per_mtok: "0.60"
+      effective_date: 2026-11-03
+      source_url: "simulated://routewise/mock-pricing"
+      simulated: true
+
+  - provider: mock
+    model_id: mock-premium
+    display_name: Mock Premium (simulated)
+    tier: premium
+    billing: free
+    context_window: 131072
+    max_output_tokens: 4096
+    capabilities: [json_mode, reasoning]
+    simulated: true
+    pricing:
+      input_usd_per_mtok: "1.00"
+      output_usd_per_mtok: "3.00"
+      effective_date: 2026-11-03
+      source_url: "simulated://routewise/mock-pricing"
+      simulated: true
