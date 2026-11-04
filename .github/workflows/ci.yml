@@ -33,7 +33,8 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      APP_ENV: test
+      # No APP_ENV here: the registered benchmark manifests pin app_env (the default, "development"),
+      # and the manifest tests compare against the live settings. Tests that need another value set it.
       # PostgreSQL variants of the DB tests (incl. concurrent budget reservations) run here.
       TEST_DATABASE_URL: postgresql://routewise:routewise-ci@localhost:5432/routewise_test?sslmode=disable
     steps:
