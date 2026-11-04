@@ -221,6 +221,63 @@ def _unique_mapping(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[Any
 
 _UniqueKeyLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _unique_mapping)
 
+
+def load_execution_schedule(
+    dataset: Dataset, prereg: dict[str, Any], directory: Path = EVAL_ROOT
+) -> dict[str, Any] | None:
+    """A registered multi-day execution schedule (v5.2.3+): which cases run on which scheduled UTC
+    day, so a run that can't fit one day's provider quota still runs every case under the same
+    registered protocol. The pre-registration pins its SHA-256. Every dataset case must appear
+    exactly once, each day's cases in dataset order. Returns None if none is registered."""
+    ref = prereg.get("execution_schedule")
+    if not ref:
+        return None
+    raw = (directory / ref["file"]).read_bytes()
+    sha = hashlib.sha256(raw).hexdigest()
+    if sha != ref["sha256"]:
+        raise ValueError(f"{ref['file']} changed since it was pre-registered")
+    try:
+        schedule = yaml.load(raw, Loader=_UniqueKeyLoader)  # noqa: S506 (a SafeLoader subclass)
+    except (yaml.YAMLError, ValueError) as error:
+        raise ValueError(f"{ref['file']}: unreadable ({error})") from None
+    if schedule.get("dataset") != dataset.name or schedule.get("dataset_sha256") != dataset.sha256:
+        raise ValueError(f"{ref['file']} is registered for a different dataset or dataset version")
+    days = schedule.get("days")
+    if not isinstance(days, dict) or sorted(days) != list(range(1, int(ref["days"]) + 1)):
+        raise ValueError(f"{ref['file']}: days must be numbered 1..{ref['days']}")
+    order = {c.id: i for i, c in enumerate(dataset.cases)}
+    seen: list[str] = [cid for day in sorted(days) for cid in days[day]]
+    duplicates = sorted({cid for cid in seen if seen.count(cid) > 1})
+    missing, extra = set(order) - set(seen), set(seen) - set(order)
+    if duplicates or missing or extra:
+        raise ValueError(
+            f"{ref['file']}: every case exactly once (duplicates {duplicates}, missing "
+            f"{sorted(missing)}, unregistered {sorted(extra)})"
+        )
+    for day, ids in days.items():
+        if [order[c] for c in ids] != sorted(order[c] for c in ids):
+            raise ValueError(f"{ref['file']}: day {day} cases must be in dataset order")
+    return {
+        "file": ref["file"],
+        "sha256": sha,
+        "days": {int(d): list(ids) for d, ids in sorted(days.items())},
+        "max_span_days": int(schedule["max_span_days"]),
+    }
+
+
+def schedule_day_cases(
+    dataset: Dataset, schedule: dict[str, Any], day: int
+) -> list[tuple[int, Case]]:
+    """The (dataset index, case) pairs of one scheduled day, in dataset order. The index is the
+    case's position in the full dataset, so the registered strategy order (alternating by case
+    index) is the same as in a single-day run."""
+    if day not in schedule["days"]:
+        raise ValueError(f"schedule day {day} is not registered (days 1..{len(schedule['days'])})")
+    index = {c.id: i for i, c in enumerate(dataset.cases)}
+    by_id = {c.id: c for c in dataset.cases}
+    return [(index[cid], by_id[cid]) for cid in schedule["days"][day]]
+
+
 APPROVED = "approved"
 APPROVED_AFTER_AMENDMENT = "approved_after_scoring_amendment"
 TRANSLATOR_ASSISTED = "translator_assisted_owner_review"

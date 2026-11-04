@@ -187,7 +187,12 @@ def evidence_files(prereg: dict[str, Any]) -> dict[str, str]:
     directory, like the pre-registration's, so a relocated copy (e.g. a review bundle) checks the
     same way."""
     files = {"evidence/dataset": f"datasets/{prereg['dataset']}.jsonl"}
-    for key in ("dataset_metadata", "scoring_amendment", "review_attestation"):
+    for key in (
+        "dataset_metadata",
+        "scoring_amendment",
+        "review_attestation",
+        "execution_schedule",
+    ):
         if prereg.get(key):
             files[f"evidence/{key}"] = str(prereg[key]["file"])
     return files

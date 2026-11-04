@@ -279,6 +279,9 @@ def build_summary(result: BenchmarkResult) -> dict[str, Any]:
         "execution_revision": result.config_snapshot.get("execution_revision"),
         "scoring_amendment": result.config_snapshot.get("scoring_amendment"),
         "review_attestation": result.config_snapshot.get("review_attestation"),
+        "execution_schedule": result.config_snapshot.get("execution_schedule"),
+        "dataset_fully_reviewed": result.dataset_fully_reviewed,
+        "incomplete": result.incomplete,
         "started_at": result.started_at,
         "finished_at": result.finished_at,
         "run_ids": result.run_ids,
@@ -318,6 +321,13 @@ def _markdown(summary: dict[str, Any]) -> str:
             f"`{review['sha256'][:12]}…`)"
         )
         lines += [f"  - **Disclosure:** {note}" for note in review["disclosures"].values()]
+    schedule = summary.get("execution_schedule")
+    if schedule and schedule.get("day") is not None:
+        lines.append(
+            f"- Execution schedule `{schedule['file']}`: day {schedule['day']} of "
+            f"{schedule['days']} ({schedule['utc_date']} UTC); not an analysis on its own, "
+            "pool all days with `eval-combine`"
+        )
     lines += [
         "",
         "Pass rates are **conditional on an answer being returned** when the basis says so; answer "
@@ -379,4 +389,169 @@ def write_report(result: BenchmarkResult, directory: Path) -> tuple[Path, dict[s
     with (out / "results.jsonl").open("w", encoding="utf-8") as handle:
         for row in outcome_dicts(result):
             handle.write(json.dumps(row) + "\n")
+    return out, summary
+
+
+def combine_scheduled_reports(
+    day_dirs: list[Path],
+    *,
+    dataset: Any,
+    prereg: dict[str, Any],
+    prereg_sha: str,
+    revision: str,
+    label: str,
+    directory: Path,
+) -> tuple[Path, dict[str, Any]]:
+    """Pool the per-day reports of a registered multi-day schedule (v5.2.3+) into the single
+    pre-registered analysis: every case of every strategy, paired by case, the same statistics.
+
+    Refuses (ValueError) anything that isn't exactly one report per registered day of this
+    revision's schedule, with the registered cases, distinct UTC dates in day order, and the same
+    scoring amendment, review attestation and simulated status. Nothing is dropped: an incomplete
+    day, or a day span longer than registered, makes the combined comparison incomplete (never
+    publishable) instead of being excluded."""
+    from datetime import date
+
+    from app.core.config import REPO_ROOT
+    from app.evaluation.dataset import load_execution_schedule
+    from app.evaluation.manifest import load_manifest
+
+    schedule = load_execution_schedule(dataset, prereg)
+    if schedule is None:
+        raise ValueError("this pre-registration registers no execution schedule")
+    days: dict[int, tuple[Path, dict[str, Any], list[CaseOutcome]]] = {}
+    for path in day_dirs:
+        summary = json.loads((path / "summary.json").read_text(encoding="utf-8"))
+        if summary.get("preregistration_sha256") != prereg_sha:
+            raise ValueError(f"{path.name}: not run under this pre-registration")
+        if summary.get("execution_revision") != revision:
+            raise ValueError(f"{path.name}: not a run of {revision}")
+        info = summary.get("execution_schedule") or {}
+        if info.get("sha256") != schedule["sha256"]:
+            raise ValueError(f"{path.name}: not run under the registered execution schedule")
+        day = info.get("day")
+        if not isinstance(day, int):
+            raise ValueError(f"{path.name}: no scheduled day recorded")
+        if day in days:
+            raise ValueError(f"scheduled day {day} supplied twice")
+        if info.get("case_ids") != schedule["days"].get(day):
+            raise ValueError(f"{path.name}: cases differ from scheduled day {day}")
+        lines = (path / "results.jsonl").read_text(encoding="utf-8").splitlines()
+        outcomes = [CaseOutcome(**json.loads(line)) for line in lines if line.strip()]
+        if {o.case_id for o in outcomes} - set(info["case_ids"]):
+            raise ValueError(f"{path.name}: results include cases outside scheduled day {day}")
+        days[day] = (path, summary, outcomes)
+    missing = sorted(set(schedule["days"]) - set(days))
+    if missing:
+        raise ValueError(f"missing scheduled days {missing}: every day must be pooled")
+    ordered = [days[d] for d in sorted(days)]
+    dates = [s["execution_schedule"]["utc_date"] for _, s, _ in ordered]
+    if len(set(dates)) != len(dates) or dates != sorted(dates):
+        raise ValueError(f"scheduled days must run on distinct UTC dates in day order: {dates}")
+    for key in ("simulated", "scoring_amendment", "review_attestation"):
+        if len({json.dumps(s.get(key), sort_keys=True) for _, s, _ in ordered}) != 1:
+            raise ValueError(f"scheduled days differ in {key}")
+    violations: list[str] = []
+    span = (date.fromisoformat(dates[-1]) - date.fromisoformat(dates[0])).days
+    if span > schedule["max_span_days"]:
+        violations.append(
+            f"days span {span} days, above the registered {schedule['max_span_days']}"
+        )
+    strategies = sorted({o.strategy for _, _, outs in ordered for o in outs})
+    for d, (path, _, outs) in zip(sorted(days), ordered, strict=True):
+        have = {(o.case_id, o.strategy) for o in outs}
+        want = {(c, st) for c in schedule["days"][d] for st in strategies}
+        if have != want or len(outs) != len(want):
+            violations.append(f"day {d} ({path.name}) lacks a result for some case and strategy")
+    first = ordered[0][1]
+    order = {c.id: i for i, c in enumerate(dataset.cases)}
+    outcomes = sorted(
+        (o for _, _, outs in ordered for o in outs),
+        key=lambda o: (order.get(o.case_id, len(order)), strategies.index(o.strategy)),
+    )
+    manifest, _ = load_manifest(REPO_ROOT / "evaluation" / prereg["experiment_manifest"]["file"])
+    result = BenchmarkResult(
+        label=label,
+        simulated=bool(first["simulated"]),
+        dataset=dataset.name,
+        dataset_sha256=dataset.sha256,
+        dataset_fully_reviewed=all(s.get("dataset_fully_reviewed") for _, s, _ in ordered),
+        preregistration=prereg,
+        preregistration_sha256=prereg_sha,
+        started_at=ordered[0][1]["started_at"],
+        finished_at=ordered[-1][1]["finished_at"],
+        config_snapshot={
+            "manifest": {"expected_models": manifest["pinned"]["expected_models"]},
+            "execution_revision": revision,
+            "scoring_amendment": first.get("scoring_amendment"),
+            "review_attestation": first.get("review_attestation"),
+            "execution_schedule": {
+                "file": schedule["file"],
+                "sha256": schedule["sha256"],
+                "days": len(schedule["days"]),
+                "utc_dates": dates,
+            },
+        },
+        run_ids={
+            f"day{d}:{k}": v
+            for d, (_, s, _) in zip(sorted(days), ordered, strict=True)
+            for k, v in s.get("run_ids", {}).items()
+        },
+        outcomes=outcomes,
+        incomplete=bool(violations) or any(s.get("incomplete") for _, s, _ in ordered),
+    )
+    summary = build_summary(result)
+    limits = prereg.get("per_case_limits", {})
+    missing_rule = (prereg.get("run_validity") or {}).get("provider_errors") == "missing"
+    summary["schedule_violations"] = violations
+    summary["schedule_days"] = [
+        {
+            "day": d,
+            "report": path.name,
+            "utc_date": s["execution_schedule"]["utc_date"],
+            "started_at": s["started_at"],
+            "finished_at": s["finished_at"],
+            "incomplete": bool(s.get("incomplete")),
+            "cases": len(schedule["days"][d]),
+            # Descriptive only (drift check); the registered analysis pools all days.
+            "per_strategy": {
+                name: {k: m[k] for k in ("answered", "pass_rate", "answer_model_distribution")}
+                for name, m in (
+                    (
+                        st,
+                        strategy_metrics(
+                            [o for o in outs if o.strategy == st],
+                            limits,
+                            errors_are_missing=missing_rule,
+                        ),
+                    )
+                    for st in strategies
+                )
+            },
+        }
+        for d, (path, s, outs) in zip(sorted(days), ordered, strict=True)
+    ]
+    out = directory / (("simulated-" if result.simulated else "") + label)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    md = _markdown(summary).rstrip("\n").split("\n")
+    md += ["", "## Scheduled days (descriptive; the verdicts above pool all days)", ""]
+    md += [
+        "| Day | UTC date | Cases | Strategy pass rates | Answering models |",
+        "|---|---|---|---|---|",
+    ]
+    for row in summary["schedule_days"]:
+        rates = "; ".join(f"{k} {v['pass_rate']}" for k, v in row["per_strategy"].items())
+        models = "; ".join(
+            f"{k}: {v['answer_model_distribution']}" for k, v in row["per_strategy"].items()
+        )
+        md.append(f"| {row['day']} | {row['utc_date']} | {row['cases']} | {rates} | {models} |")
+    md += [f"- **Schedule violation:** {v}" for v in violations]
+    (out / "summary.md").write_text("\n".join(md) + "\n", encoding="utf-8")
+    with (out / "results.jsonl").open("w", encoding="utf-8") as handle:
+        day_of = {c: d for d, ids in schedule["days"].items() for c in ids}
+        for row_dict in outcome_dicts(result):
+            handle.write(
+                json.dumps({**row_dict, "schedule_day": day_of[row_dict["case_id"]]}) + "\n"
+            )
     return out, summary

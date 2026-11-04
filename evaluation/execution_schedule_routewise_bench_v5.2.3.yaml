@@ -1,0 +1,154 @@
+# Execution schedule for routewise_bench_v5.2.3 (dataset routewise_bench_v5, unchanged). It fixes, before any
+# run, which cases run on which of four UTC days. Pinned by preregistration_routewise_bench_v5.2.3.yaml.
+# Do not edit.
+schedule: execution-schedule-routewise_bench_v5.2.3
+revision: routewise_bench_v5.2.3
+created_at_utc: '2026-11-04T18:25:33Z'
+dataset: routewise_bench_v5
+dataset_sha256: 76a4d1906b3e90bff6ed504f67067bf891923332fa00256227e303c11dea27bd
+reason: 'The registered comparison''s worst case (583,738 tokens: 445,890 on openai/gpt-oss-120b, 137,848
+  on openai/gpt-oss-20b) exceeds one day of the observed Groq limits (200,000 tokens per day per model;
+  the guard uses 90%). The quota guard caps all Groq models together, so the operator supplies the SMALLER
+  of the two models'' remaining daily tokens; four days fit that cap without changing the guard.'
+allocation:
+  method: 'Stratify by difficulty (complex, standard, simple); within each stratum shuffle the case IDs
+    (taken in dataset order) with Python random.Random(seed); assign each case to the day with the smallest
+    worst-case token load so far (ties: fewest cases of that stratum, then the lowest day). Each day''s
+    cases are listed in dataset order. No outcome data exists or was used.'
+  seed: 20261104
+  load_measure: per-case worst-case reservation from preflight.plan (all three strategies)
+max_span_days: 14
+days:
+  1:
+  - S05
+  - S08
+  - S11
+  - T03
+  - T06
+  - T16
+  - T17
+  - C03
+  - C10
+  - C11
+  2:
+  - S06
+  - S07
+  - S14
+  - T02
+  - T08
+  - T09
+  - T14
+  - T15
+  - T18
+  - C01
+  - C06
+  - C08
+  3:
+  - S02
+  - S03
+  - S09
+  - S10
+  - T05
+  - T07
+  - T11
+  - T13
+  - C07
+  - C09
+  - C12
+  4:
+  - S01
+  - S04
+  - S12
+  - S13
+  - S15
+  - T01
+  - T04
+  - T10
+  - T12
+  - C02
+  - C04
+  - C05
+day_worst_case:
+  1:
+    cases: 10
+    gateway_requests: 30
+    max_provider_attempts: 88
+    worst_case_tokens: 146532
+    input_tokens: 53348
+    output_tokens: 93184
+    per_model:
+      openai/gpt-oss-120b:
+        max_attempts: 60
+        worst_case_tokens: 107652
+      openai/gpt-oss-20b:
+        max_attempts: 28
+        worst_case_tokens: 38880
+    required_remaining_daily_tokens: 162814
+    min_minutes_at_6000_tpm: 24.4
+  2:
+    cases: 12
+    gateway_requests: 36
+    max_provider_attempts: 96
+    worst_case_tokens: 144678
+    input_tokens: 43302
+    output_tokens: 101376
+    per_model:
+      openai/gpt-oss-120b:
+        max_attempts: 72
+        worst_case_tokens: 115962
+      openai/gpt-oss-20b:
+        max_attempts: 24
+        worst_case_tokens: 28716
+    required_remaining_daily_tokens: 160754
+    min_minutes_at_6000_tpm: 24.1
+  3:
+    cases: 11
+    gateway_requests: 33
+    max_provider_attempts: 94
+    worst_case_tokens: 141972
+    input_tokens: 43668
+    output_tokens: 98304
+    per_model:
+      openai/gpt-oss-120b:
+        max_attempts: 66
+        worst_case_tokens: 104448
+      openai/gpt-oss-20b:
+        max_attempts: 28
+        worst_case_tokens: 37524
+    required_remaining_daily_tokens: 157747
+    min_minutes_at_6000_tpm: 23.7
+  4:
+    cases: 12
+    gateway_requests: 36
+    max_provider_attempts: 100
+    worst_case_tokens: 150556
+    input_tokens: 55324
+    output_tokens: 95232
+    per_model:
+      openai/gpt-oss-120b:
+        max_attempts: 72
+        worst_case_tokens: 117828
+      openai/gpt-oss-20b:
+        max_attempts: 28
+        worst_case_tokens: 32728
+    required_remaining_daily_tokens: 167285
+    min_minutes_at_6000_tpm: 25.1
+rules:
+- Each case's three strategies run on the same scheduled day, in the registered interleaved order (alternating
+  by the case's dataset index).
+- Days run in order 1, 2, 3, 4, each on its own UTC date; day 4's date at most 14 days after day 1's.
+- Each day runs exactly once. No day, case or strategy is ever re-run. A day that is stopped or incomplete
+  makes the whole comparison incomplete (not publishable); nothing is excluded selectively. Provider errors
+  count as missing under run_validity.
+- 'Before a day: read both models'' remaining daily tokens in the Groq console (same UTC date) and supply
+  the smaller one; the day''s preflight must pass (it needs at least required_remaining_daily_tokens).
+  If it fails, don''t start; use a later UTC date within the span.'
+- 'Start a day at least 2 hours before 00:00 UTC: the budget is valid only on its UTC date, and the guard
+  stops a run that crosses midnight.'
+- Before each day, check that Groq still lists openai/gpt-oss-20b and openai/gpt-oss-120b unchanged (models
+  and deprecations pages); the run's own catalog check must list both. If either changes or is deprecated
+  during the schedule, the comparison is incomplete.
+- Keep all other traffic off the Groq organisation while a day runs; the persistent ledger carries usage
+  across processes and restarts.
+- 'The registered analysis is the combined report of all four days (eval-combine): every case and strategy
+  pooled, paired by case, with the registered statistics. Per-day figures are descriptive only.'

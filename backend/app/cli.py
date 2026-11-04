@@ -297,6 +297,22 @@ def _attempt_quota(prereg: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
     return provider, quota
 
 
+def _scheduled(args: argparse.Namespace, prereg: dict[str, Any], dataset: Any) -> tuple[Any, Any]:
+    """(schedule or None, the dataset restricted to --schedule-day's cases, or the full dataset)."""
+    from app.evaluation.dataset import load_execution_schedule, schedule_day_cases
+
+    schedule = load_execution_schedule(dataset, prereg)
+    day = getattr(args, "schedule_day", None)
+    if schedule is None:
+        if day is not None:
+            raise ValueError("this pre-registration registers no execution schedule")
+        return None, dataset
+    if day is None:
+        return schedule, dataset
+    cases = [case for _, case in schedule_day_cases(dataset, schedule, day)]
+    return schedule, dataset.model_copy(update={"cases": cases})
+
+
 def _quota_preflight(
     args: argparse.Namespace,
     prereg: dict[str, Any],
@@ -401,9 +417,39 @@ async def cmd_eval_validate(args: argparse.Namespace) -> int:
         except ValueError as error:
             print(f"experiment manifest: DOES NOT MATCH — {error}")
             status = 1
-        pre = _quota_preflight(args, prereg, dataset, settings, providers, list(STRATEGIES))
-        if pre is not None and not pre.ok:
-            status = 1
+        try:
+            schedule, planned = _scheduled(args, prereg, dataset)
+        except ValueError as error:
+            print(f"execution schedule: INVALID — {error}")
+            return 1
+        if schedule is None:
+            pre = _quota_preflight(args, prereg, planned, settings, providers, list(STRATEGIES))
+            if pre is not None and not pre.ok:
+                status = 1
+            return status
+        from app.evaluation.dataset import schedule_day_cases
+
+        sizes = ", ".join(f"day {d}: {len(ids)} cases" for d, ids in schedule["days"].items())
+        print(
+            f"execution schedule {schedule['file']} sha256 {schedule['sha256'][:12]}: "
+            f"valid; {sizes}"
+        )
+        days = [args.schedule_day] if args.schedule_day is not None else list(schedule["days"])
+        for day in days:
+            day_cases = [case for _, case in schedule_day_cases(dataset, schedule, day)]
+            print(f"scheduled day {day} ({len(day_cases)} cases):")
+            pre = _quota_preflight(
+                args,
+                prereg,
+                dataset.model_copy(update={"cases": day_cases}),
+                settings,
+                providers,
+                list(STRATEGIES),
+            )
+            if pre is not None and not pre.ok:
+                status = 1
+        if args.schedule_day is None:
+            print("eval-run runs one scheduled day at a time: pass --schedule-day N")
     return status
 
 
@@ -434,6 +480,14 @@ async def cmd_eval_run(args: argparse.Namespace) -> int:
 
         apply_scoring_amendment(dataset, prereg)
         apply_review_attestation(dataset, prereg)
+        schedule, planned = _scheduled(args, prereg, dataset)
+        if schedule is not None and args.schedule_day is None:
+            raise ValueError(
+                f"a {len(schedule['days'])}-day execution schedule is registered: pass the day "
+                "(--schedule-day)"
+            )
+        if schedule is not None and args.limit:
+            raise ValueError("--limit can't be combined with a registered execution schedule")
         check_manifest(
             prereg,
             settings,
@@ -448,7 +502,7 @@ async def cmd_eval_run(args: argparse.Namespace) -> int:
         )
     except ValueError as error:
         raise CliError(str(error)) from None
-    pre = _quota_preflight(args, prereg, dataset, settings, providers, args.strategies)
+    pre = _quota_preflight(args, prereg, planned, settings, providers, args.strategies)
     if pre is not None and not pre.ok:
         raise CliError("quota preflight failed (fail closed): " + "; ".join(pre.problems))
     await refresh_catalogs(providers, HealthRegistry())
@@ -468,6 +522,7 @@ async def cmd_eval_run(args: argparse.Namespace) -> int:
             daily_budget=_daily_budget(args),
             ledger_path=Path(args.ledger) if args.ledger else None,
             accept_incomplete_risk=args.accept_incomplete_risk,
+            schedule_day=args.schedule_day,
         )
         out, summary = write_report(result, REPORTS_DIR)
         await store_summaries(db, summary)
@@ -484,6 +539,37 @@ async def cmd_eval_run(args: argparse.Namespace) -> int:
     if summary["publishable_reasons"]:
         print("not publishable: " + "; ".join(summary["publishable_reasons"]))
     return 1 if result.incomplete else 0
+
+
+async def cmd_eval_combine(args: argparse.Namespace) -> int:
+    """Pool the reports of every scheduled day of one revision into the single registered analysis
+    (offline: no provider or database call). Exit 0 only if the combined comparison is complete."""
+    from pathlib import Path
+
+    from app.evaluation.dataset import REPORTS_DIR, load_dataset
+    from app.evaluation.report import combine_scheduled_reports
+
+    dataset = load_dataset(args.dataset)
+    prereg, sha, _ = _load_prereg(args, dataset)
+    directories = [Path(d) if Path(d).is_absolute() else REPORTS_DIR / d for d in args.reports]
+    try:
+        out, summary = combine_scheduled_reports(
+            directories,
+            dataset=dataset,
+            prereg=prereg,
+            prereg_sha=sha,
+            revision=args.revision,
+            label=args.label,
+            directory=REPORTS_DIR,
+        )
+    except (ValueError, OSError) as error:
+        raise CliError(str(error)) from None
+    print(f"combined report: {out}")
+    for violation in summary["schedule_violations"]:
+        print(f"  schedule violation: {violation}")
+    if summary["publishable_reasons"]:
+        print("not publishable: " + "; ".join(summary["publishable_reasons"]))
+    return 1 if summary["incomplete"] else 0
 
 
 def _add_revision_and_budget_args(p: argparse.ArgumentParser) -> None:
@@ -523,6 +609,12 @@ def _add_revision_and_budget_args(p: argparse.ArgumentParser) -> None:
         "incomplete rather than exceed it)",
     )
     p.add_argument("--ledger", default=None, help="quota ledger path (default: evaluation/reports)")
+    p.add_argument(
+        "--schedule-day",
+        type=int,
+        default=None,
+        help="day of a registered multi-day execution schedule (v5.2.3+)",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -589,6 +681,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--limit", type=int, default=None, help="only the first N cases")
     _add_revision_and_budget_args(p)
     p.set_defaults(func=cmd_eval_run)
+
+    p = sub.add_parser(
+        "eval-combine", help="pool every scheduled day's report into the registered analysis"
+    )
+    p.add_argument("--dataset", required=True)
+    p.add_argument("--revision", required=True, help="the revision whose schedule the days follow")
+    p.add_argument("--label", required=True, help="combined report directory name")
+    p.add_argument(
+        "--reports", nargs="+", required=True, help="one report directory per scheduled day"
+    )
+    p.set_defaults(func=cmd_eval_combine)
     return parser
 
 

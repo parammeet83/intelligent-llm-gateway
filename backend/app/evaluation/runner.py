@@ -32,8 +32,10 @@ from app.evaluation.dataset import (
     apply_review_attestation,
     apply_scoring_amendment,
     load_execution_revision,
+    load_execution_schedule,
     load_preregistration,
     preregistration_path,
+    schedule_day_cases,
 )
 from app.evaluation.pacing import (
     AttemptPacer,
@@ -217,11 +219,13 @@ async def run_benchmark(
     daily_budget: DailyBudget | None = None,
     ledger_path: Path | None = None,
     accept_incomplete_risk: bool = False,
+    schedule_day: int | None = None,
 ) -> BenchmarkResult:
     """`revision` selects an execution revision (e.g. routewise_bench_v5.1) of `dataset`.
     For manifests that pin `execution.attempt_quota` (v5.1+), every provider attempt reserves quota
     before transmission (PacedProvider), `daily_budget` is required, and the worst-case preflight
-    must pass before any request is made."""
+    must pass before any request is made. A revision with a registered execution schedule
+    (v5.2.3+) runs one scheduled day per call (`schedule_day`); its preflight covers that day."""
     unknown = set(strategies) - set(STRATEGIES)
     if unknown:
         raise ValueError(f"unknown strategies: {sorted(unknown)}")
@@ -238,6 +242,23 @@ async def run_benchmark(
     dataset, scoring_amendment = apply_scoring_amendment(dataset, prereg)
     # v5.2.2+: review status from a pinned owner attestation (an in-memory overlay; fails closed).
     dataset, review_attestation = apply_review_attestation(dataset, prereg)
+    # v5.2.3+: a registered multi-day schedule. Each call runs one day; a case's strategies stay
+    # together on that day, so the paired comparison is preserved.
+    schedule = load_execution_schedule(dataset, prereg)
+    if schedule is None:
+        if schedule_day is not None:
+            raise ValueError("this pre-registration registers no execution schedule")
+        indexed = list(enumerate(dataset.cases[:limit_cases] if limit_cases else dataset.cases))
+    else:
+        if schedule_day is None:
+            raise ValueError(
+                f"a {len(schedule['days'])}-day execution schedule is registered: pass the day "
+                "(--schedule-day)"
+            )
+        if limit_cases:
+            raise ValueError("limit_cases can't be combined with a registered execution schedule")
+        indexed = schedule_day_cases(dataset, schedule, schedule_day)
+    planned = dataset.model_copy(update={"cases": [case for _, case in indexed]})
     from app.evaluation.manifest import check_manifest
 
     manifest = check_manifest(
@@ -267,7 +288,7 @@ async def run_benchmark(
         ((quota_provider, quota),) = attempt_quotas.items()
         ledger = QuotaLedger(ledger_path or DEFAULT_LEDGER, quota_provider)
         pre = preflight.evaluate(
-            preflight.plan(dataset, strategies, settings, providers, quota),
+            preflight.plan(planned, strategies, settings, providers, quota),
             quota,
             daily_budget,
             ledger,
@@ -302,7 +323,6 @@ async def run_benchmark(
         for name in strategies
     }
     case_ids = await _upsert_cases(db, dataset)
-    cases = dataset.cases[:limit_cases] if limit_cases else dataset.cases
     started = datetime.now(UTC)
 
     run_ids: dict[str, str] = {}
@@ -319,6 +339,18 @@ async def run_benchmark(
     snapshot["execution_revision"] = revision
     snapshot["scoring_amendment"] = scoring_amendment
     snapshot["review_attestation"] = review_attestation
+    snapshot["execution_schedule"] = (
+        None
+        if schedule is None
+        else {
+            "file": schedule["file"],
+            "sha256": schedule["sha256"],
+            "day": schedule_day,
+            "days": len(schedule["days"]),
+            "case_ids": [case.id for _, case in indexed],
+            "utc_date": started.astimezone(UTC).date().isoformat(),
+        }
+    )
     snapshot["quota"] = quota_report
     async with db.sessionmaker() as session:
         for name in strategies:
@@ -348,7 +380,7 @@ async def run_benchmark(
     incomplete = False
     stopped = False
     try:
-        for index, case in enumerate(cases):
+        for index, case in indexed:
             order = strategies if index % 2 == 0 else list(reversed(strategies))
             for name in order:
                 if pacer is not None:

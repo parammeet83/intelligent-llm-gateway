@@ -11,6 +11,7 @@ the old revision is now refused (fail closed). Every other test in those files r
   app/cli.py, app/evaluation/dataset.py, runner.py and scorers.py).
 - v5.2.2 superseded v5.2.1 (attestation-aware publication gate; schema-6 manifest; the code changed
   in app/cli.py, app/evaluation/dataset.py, manifest.py, report.py and runner.py).
+- v5.2.3 superseded v5.2.2 (registered four-day execution schedule; the same five files changed).
 """
 
 from __future__ import annotations
@@ -44,10 +45,20 @@ SUPERSEDED_V5_2_1: dict[str, type[BaseException]] = {
     "test_eval_validate_v5_2_1_passes_with_a_verified_budget": AssertionError,
     "test_eval_run_v5_2_1_refuses_without_a_budget_before_any_network_call": AssertionError,
 }
+SUPERSEDED_V5_2_2: dict[str, type[BaseException]] = {
+    # check_manifest itself refuses: "configuration differs from ..._v5.2.2.yaml"
+    "test_v5_2_2_manifest_matches_the_intended_configuration": ValueError,
+    "test_the_manifest_also_refuses_modified_evidence": ValueError,
+    # the CLI reports the mismatch instead of "matches" / the preflight result
+    "test_eval_validate_reports_the_attestation_and_fails_closed_without_a_budget": AssertionError,
+    "test_eval_validate_v5_2_2_passes_with_a_verified_budget": AssertionError,
+    "test_eval_run_v5_2_2_refuses_without_a_budget_before_any_network_call": AssertionError,
+}
 SUPERSEDED = {
     "test_execution_v5_1.py": (SUPERSEDED_V5_1, "v5.1 superseded by v5.2"),
     "test_execution_v5_2.py": (SUPERSEDED_V5_2, "v5.2 superseded by v5.2.1"),
     "test_scoring_v5_2_1.py": (SUPERSEDED_V5_2_1, "v5.2.1 superseded by v5.2.2"),
+    "test_publication_gate_v5_2_2.py": (SUPERSEDED_V5_2_2, "v5.2.2 superseded by v5.2.3"),
 }
 REASON = (
     "{}: its manifest no longer matches the execution code, so it is refused before any network "

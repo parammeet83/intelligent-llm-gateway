@@ -1,0 +1,33 @@
+# Revision routewise_bench_v5.2.3: the root of its hash chain. An execution-schedule amendment of
+# routewise_bench_v5.2.2 (kept unchanged; refused at run time) for the UNCHANGED dataset routewise_bench_v5.
+# Run one scheduled day with `--revision routewise_bench_v5.2.3 --schedule-day N`; pool with `eval-combine`.
+revision: routewise_bench_v5.2.3
+kind: execution-schedule-amendment
+created_on: 2026-11-04
+registered_at_utc: '2026-11-04T18:25:33Z'
+supersedes: routewise_bench_v5.2.2
+amends_revision:
+  name: routewise_bench_v5.2.2
+  file: routewise_bench_v5.2.2.revision.yaml
+  sha256: 66320623bb6d6bc3518f6ebb5bf1b1c1e6c59830bca016d22639f33927de6bf7
+dataset: routewise_bench_v5
+dataset_sha256: 76a4d1906b3e90bff6ed504f67067bf891923332fa00256227e303c11dea27bd
+dataset_metadata:
+  file: datasets/routewise_bench_v5.meta.yaml
+  sha256: 262dde03c4018fe1f79c1fe8760f32cfcce3e1624284ea6b56eafed432806ada
+scoring_amendment:
+  file: scoring_amendment_routewise_bench_v5.2.1.yaml
+  sha256: bab04a1a24f2f7d52538d49472edd52579ce08ded0ed10460225498b4a4c8431
+review_attestation:
+  file: reviews/routewise_bench_v5.2.1_HUMAN_REVIEW_ATTESTATION.yaml
+  sha256: b7099444ac312eef336ebacbdb6e93335ba366f9de452be88cb17a97524c59ed
+execution_schedule:
+  file: execution_schedule_routewise_bench_v5.2.3.yaml
+  sha256: c74699c11ec73ef08e0d883fedf7ffe5b5bc996c84de8ba9abbb0207b94756e6
+  days: 4
+preregistration:
+  file: preregistration_routewise_bench_v5.2.3.yaml
+  sha256: 116111218e212ea4470c3f25d59f525cac00ff31714f34ce7deb3b5b8c7d68e7
+changelog: datasets/routewise_bench_v5.2.3.CHANGELOG.md
+review_report: datasets/routewise_bench_v5.2.3_review_report.md
+status: owner-reviewed-via-attestation
