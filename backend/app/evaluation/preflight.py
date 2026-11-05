@@ -68,8 +68,11 @@ def plan(
     settings: Settings,
     providers: dict[str, Provider],
     quota: dict[str, Any],
+    *,
+    only: set[tuple[str, str]] | None = None,
 ) -> Preflight:
-    """Attempt and token bounds for every (strategy, case) under the live routing configuration."""
+    """Attempt and token bounds for every (strategy, case) under the live routing configuration.
+    `only` (v5.2.4 recovery) restricts the plan to these (case ID, strategy) combinations."""
     from app.evaluation.runner import STRATEGIES
 
     out = Preflight()
@@ -88,6 +91,8 @@ def plan(
         policy = base_policy.model_copy(update=policy_overrides)
         totals = {"requests": 0, "attempts": 0, "input": 0, "output": 0}
         for case in dataset.cases:
+            if only is not None and (case.id, strategy) not in only:
+                continue
             decision = route(
                 RoutingRequest(
                     messages=(ChatMessage(role="user", content=case.prompt),),

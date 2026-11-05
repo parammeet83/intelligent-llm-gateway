@@ -1,0 +1,210 @@
+# Disclosed post-hoc recovery of the interrupted Day 2 of routewise_bench_v5.2.3. Pinned by
+# preregistration_routewise_bench_v5.2.4.yaml. Do not edit.
+recovery: day-2-recovery-routewise_bench_v5.2.4
+revision: routewise_bench_v5.2.4
+created_at_utc: '2026-11-05T08:56:09Z'
+kind: 'POST-HOC RECOVERY AMENDMENT (disclosed): registered after 11 of Day 2''s 36 outcomes had been observed'
+dataset: routewise_bench_v5
+dataset_sha256: 76a4d1906b3e90bff6ed504f67067bf891923332fa00256227e303c11dea27bd
+schedule_file: execution_schedule_routewise_bench_v5.2.3.yaml
+schedule_sha256: c74699c11ec73ef08e0d883fedf7ffe5b5bc996c84de8ba9abbb0207b94756e6
+day: 2
+strategies: &id001
+- baseline_premium
+- routewise
+- routewise_tier_first
+interrupted:
+  revision: routewise_bench_v5.2.3
+  started_at_utc: '2026-11-05T06:48:43Z'
+  last_persisted_result_utc: '2026-11-05T06:50:43.709940Z'
+  failure: Neon database timeout before the next step's request (no provider attempt in flight); finalisation
+    also timed out
+  incident_report:
+    summary:
+      file: reports/v5.2.3-day2/summary.json
+      sha256: 3b9ccbf26cdc98b4e72e0be00cecef9a06e82e968b57f11ed8c9a4a41c263364
+    results:
+      file: reports/v5.2.3-day2/results.jsonl
+      sha256: ed882a52d261c4ea4c9b3986580ef2b51cfcb6efcdeb6ca4fae99be791492f2a
+    md:
+      file: reports/v5.2.3-day2/summary.md
+      sha256: 6c2955f58530f5e236aea1c865e83e4c1b88653e4e8e9d21df6293bf1d7f64d5
+  observed_before_this_registration: all 11 carried-over results were known (and all 11 passed) when this
+    recovery was registered
+original_runs:
+  baseline_premium: 4c2aed09-3b2c-4f56-ac93-24cc0c59019d
+  routewise: 8221d2a2-ef04-4515-8d79-fffa0c60d640
+  routewise_tier_first: 315cc0c9-e8ee-4a2f-946b-843525d4e485
+carried_over:
+- case_id: S06
+  strategy: routewise_tier_first
+  evaluation_result_id: 0b6b2898-2264-4ddc-8918-6e2cdf8d837f
+  request_log_id: db9015de-3aba-423f-9a4e-426627b7e5f2
+  run_id: 315cc0c9-e8ee-4a2f-946b-843525d4e485
+  passed: true
+- case_id: S06
+  strategy: routewise
+  evaluation_result_id: 876203ed-ebb4-4510-8eac-b344074bb431
+  request_log_id: b291565c-5145-44e1-b171-b475b7bfddff
+  run_id: 8221d2a2-ef04-4515-8d79-fffa0c60d640
+  passed: true
+- case_id: S06
+  strategy: baseline_premium
+  evaluation_result_id: 3b7ce847-199b-43a7-bc69-cecf63d51873
+  request_log_id: 63bb7395-7ae2-414b-bfac-547babc74edf
+  run_id: 4c2aed09-3b2c-4f56-ac93-24cc0c59019d
+  passed: true
+- case_id: S07
+  strategy: baseline_premium
+  evaluation_result_id: b222ce1f-fba4-4053-ade2-9377d12b1cbc
+  request_log_id: ef2a16b8-0d8c-4306-8afd-5946ded81456
+  run_id: 4c2aed09-3b2c-4f56-ac93-24cc0c59019d
+  passed: true
+- case_id: S07
+  strategy: routewise
+  evaluation_result_id: 14c4be0c-d9e8-45ea-91b9-ebcce695e264
+  request_log_id: 83391ad6-0125-4a75-a6ab-660aa42dfe47
+  run_id: 8221d2a2-ef04-4515-8d79-fffa0c60d640
+  passed: true
+- case_id: S07
+  strategy: routewise_tier_first
+  evaluation_result_id: b62ea957-69f9-450f-83f5-8ef9cc9f5b87
+  request_log_id: 3e4cc9f5-48d6-4136-8fe1-b204aa913d03
+  run_id: 315cc0c9-e8ee-4a2f-946b-843525d4e485
+  passed: true
+- case_id: S14
+  strategy: routewise_tier_first
+  evaluation_result_id: 4e9e95bc-e003-493c-bb5c-3f3083e7d358
+  request_log_id: 6e61c576-75db-46b1-b264-4cbe5196c800
+  run_id: 315cc0c9-e8ee-4a2f-946b-843525d4e485
+  passed: true
+- case_id: S14
+  strategy: routewise
+  evaluation_result_id: 81d1ea3d-0169-489c-9b8a-6582d12ce703
+  request_log_id: 19be8296-41e6-4cd6-a25a-6c0d4f3a5e81
+  run_id: 8221d2a2-ef04-4515-8d79-fffa0c60d640
+  passed: true
+- case_id: S14
+  strategy: baseline_premium
+  evaluation_result_id: 2643427c-e2de-4595-8735-da17482f1f41
+  request_log_id: b5162cf9-6e9d-4078-853d-aa6ad2ceb3b0
+  run_id: 4c2aed09-3b2c-4f56-ac93-24cc0c59019d
+  passed: true
+- case_id: T02
+  strategy: baseline_premium
+  evaluation_result_id: 67df7196-008c-4869-834a-d47ab88df6f4
+  request_log_id: 059ed2e5-a817-4555-89d4-8821063fb3ae
+  run_id: 4c2aed09-3b2c-4f56-ac93-24cc0c59019d
+  passed: true
+- case_id: T02
+  strategy: routewise
+  evaluation_result_id: f3aa077c-b3ac-4090-a096-b000c8464a39
+  request_log_id: 4a0ab967-3ac1-4633-a5b9-6651ca0b18d7
+  run_id: 8221d2a2-ef04-4515-8d79-fffa0c60d640
+  passed: true
+execute:
+- case_id: T02
+  strategy: routewise_tier_first
+- case_id: T08
+  strategy: baseline_premium
+- case_id: T08
+  strategy: routewise
+- case_id: T08
+  strategy: routewise_tier_first
+- case_id: T09
+  strategy: routewise_tier_first
+- case_id: T09
+  strategy: routewise
+- case_id: T09
+  strategy: baseline_premium
+- case_id: T14
+  strategy: baseline_premium
+- case_id: T14
+  strategy: routewise
+- case_id: T14
+  strategy: routewise_tier_first
+- case_id: T15
+  strategy: routewise_tier_first
+- case_id: T15
+  strategy: routewise
+- case_id: T15
+  strategy: baseline_premium
+- case_id: T18
+  strategy: baseline_premium
+- case_id: T18
+  strategy: routewise
+- case_id: T18
+  strategy: routewise_tier_first
+- case_id: C01
+  strategy: routewise_tier_first
+- case_id: C01
+  strategy: routewise
+- case_id: C01
+  strategy: baseline_premium
+- case_id: C06
+  strategy: baseline_premium
+- case_id: C06
+  strategy: routewise
+- case_id: C06
+  strategy: routewise_tier_first
+- case_id: C08
+  strategy: baseline_premium
+- case_id: C08
+  strategy: routewise
+- case_id: C08
+  strategy: routewise_tier_first
+expected_matrix:
+  cases:
+  - S06
+  - S07
+  - S14
+  - T02
+  - T08
+  - T09
+  - T14
+  - T15
+  - T18
+  - C01
+  - C06
+  - C08
+  strategies: *id001
+  combinations: 36
+  carried_over: 11
+  to_execute: 25
+worst_case_quota_for_execute:
+  gateway_requests: 25
+  max_provider_attempts: 60
+  worst_case_tokens: 108730
+  input_tokens: 28858
+  output_tokens: 79872
+  required_remaining_daily_tokens: 120812
+policies:
+  carried_over: The 11 genuine results persisted by the interrupted v5.2.3 runs are reused unchanged,
+    linked by their evaluation-result and request-log IDs, and never re-run. The original runs stay `failed`.
+  execution: 'One recovery run per strategy executes exactly the 25 listed combinations, in the registered
+    Day 2 order (continuing the interrupted sequence at routewise_tier_first/T02), with the registered
+    configuration: concurrency 1, 6 s delay, Groq max_retries 1, fallbacks within each decision''s eligible
+    models, the per-attempt quota guard and the operator-verified daily budget.'
+  provider_failures: A provider failure or a failed answer is recorded as that combination's genuine outcome
+    (answer missing under run_validity) and is never re-run.
+  database_failures: Database operations are retried with bounded backoff (1, 2, 4, 8, 16 s). A combination
+    is retried only if the quota ledger proves no provider attempt was reserved for it; otherwise the
+    run stops (fail closed). Result persistence is idempotent on (run, case). Finalisation is retried
+    and never hides the original error; runs left `running` are closed with `eval-finalize-runs`.
+  runs_once: The recovery runs once. If it has started (any run carries this plan), it is never restarted;
+    an incomplete recovery stays incomplete.
+completeness: Complete only if all 36 combinations have exactly one persisted result (11 carried over
+  + 25 recovered), each linked to its request log; every recovery run is `completed`; the three original
+  runs stay `failed`; and the report built from Neon (eval-recovery-report) reports 0 missing and no validation
+  problem.
+publishability: Never publishable as a confirmatory, pre-registered result.
+disclosed_limitations:
+- 'Post-hoc: registered after 11 Day 2 outcomes (all passes) were observed; not a clean prospective experiment.'
+- 'Time gap: the 11 carried-over results were produced 06:48-06:50 UTC on 2026-11-05; the 25 recovered
+  ones hours later. Model or provider behaviour may differ between the two windows.'
+- 'Split pairing: T02''s baseline_premium and routewise results come from the interrupted runs and its
+  routewise_tier_first result from the recovery run.'
+- 'Mixed runs: Day 2''s results come from two sets of evaluation runs (original, failed; recovery).'
+- 'Scope: Day 2 only. The v5.2.3 four-day comparison remains incomplete; Days 3-4 and any pooled analysis
+  need their own registration.'
+- T17 (not on Day 2) remains translator-assisted owner review, unchanged.

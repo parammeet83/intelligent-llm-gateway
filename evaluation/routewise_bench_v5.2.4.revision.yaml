@@ -1,0 +1,25 @@
+# Revision routewise_bench_v5.2.4: the root of its hash chain. A DISCLOSED POST-HOC RECOVERY AMENDMENT of
+# routewise_bench_v5.2.3 (kept unchanged; refused at run time) that completes the interrupted Day 2 only.
+# Run once with `--revision routewise_bench_v5.2.4 --schedule-day 2`; report with `eval-recovery-report`.
+revision: routewise_bench_v5.2.4
+kind: post-hoc-recovery-amendment
+created_on: 2026-11-05
+registered_at_utc: '2026-11-05T08:56:09Z'
+supersedes: routewise_bench_v5.2.3
+amends_revision:
+  name: routewise_bench_v5.2.3
+  file: routewise_bench_v5.2.3.revision.yaml
+  sha256: 70f0059153b4f66c90780cfbc9d6dad115ad87e629851b170b788fe9f005c4a8
+dataset: routewise_bench_v5
+dataset_sha256: 76a4d1906b3e90bff6ed504f67067bf891923332fa00256227e303c11dea27bd
+execution_schedule:
+  file: execution_schedule_routewise_bench_v5.2.3.yaml
+  sha256: c74699c11ec73ef08e0d883fedf7ffe5b5bc996c84de8ba9abbb0207b94756e6
+execution_recovery:
+  file: execution_recovery_routewise_bench_v5.2.4.yaml
+  sha256: e3c46ba492fd5cf5ba33cb13b672c2771d273563ec01ca2b64e5082472f7a1da
+preregistration:
+  file: preregistration_routewise_bench_v5.2.4.yaml
+  sha256: b041f94a2fa0ad8e53cc4530e6f45568da9fe4dedbf708ba2750c99267515619
+changelog: datasets/routewise_bench_v5.2.4.CHANGELOG.md
+status: post-hoc-recovery-not-publishable

@@ -392,6 +392,354 @@ def write_report(result: BenchmarkResult, directory: Path) -> tuple[Path, dict[s
     return out, summary
 
 
+RECOVERY_DISCLOSURE = (
+    "post-hoc recovery: registered after the interrupted day's first outcomes were observed, so it "
+    "is exploratory and not a confirmatory pre-registered result"
+)
+
+
+def _outcome_from_db(
+    row: Any, case: Any, log: Any, attempts: list[Any], tier_of: dict[str, str], source: str
+) -> CaseOutcome:
+    """Rebuild a CaseOutcome from its persisted EvaluationResult, request log and attempts."""
+    details = dict(row.scorer_details or {})
+    provenance = dict(details.get("provenance") or {})
+    details["provenance"] = {
+        **provenance,
+        "source": source,
+        "run_id": str(row.run_id),
+        "evaluation_result_id": str(row.id),
+        "result_created_at": row.created_at.isoformat() if row.created_at else None,
+        "request_log_id": str(row.request_log_id) if row.request_log_id else None,
+        "request_status": log.status if log is not None else None,
+        "request_created_at": log.created_at.isoformat() if log is not None else None,
+        "request_completed_at": (
+            log.completed_at.isoformat() if log is not None and log.completed_at else None
+        ),
+    }
+    return CaseOutcome(
+        case_id=case.id,
+        difficulty=case.difficulty,
+        category=case.category,
+        strategy=row.strategy,
+        passed=row.passed,
+        score=row.score,
+        needs_human_review=case.needs_human_review,
+        error_code=row.error_code,
+        provider=row.provider,
+        model=row.model_id,
+        tier=row.routing_tier,
+        fallback_used=row.fallback_used,
+        latency_ms=row.latency_ms,
+        input_tokens=row.input_tokens,
+        output_tokens=row.output_tokens,
+        estimated_list_cost_usd=None
+        if row.estimated_list_cost_usd is None
+        else str(row.estimated_list_cost_usd),
+        list_cost_status=row.list_cost_status,
+        actual_charge_usd=None if row.actual_charge_usd is None else str(row.actual_charge_usd),
+        cost_status=row.cost_status,
+        simulated=row.simulated,
+        request_id=str(row.request_log_id) if row.request_log_id else None,
+        details=details,
+        answer_model=provenance.get("answer_model"),
+        attempts=[
+            {
+                "attempt": a.attempt_number,
+                "provider": a.provider,
+                "model": a.model_id,
+                "tier": tier_of.get(f"{a.provider}/{a.model_id}"),
+                "reason_code": a.reason_code,
+                "status": a.status,
+                "error_code": a.error_code,
+                "latency_ms": a.latency_ms,
+                "input_tokens": a.input_tokens,
+                "output_tokens": a.output_tokens,
+            }
+            for a in sorted(attempts, key=lambda a: a.attempt_number)
+        ],
+    )
+
+
+async def build_recovery_report(
+    db: Database,
+    *,
+    dataset: Any,
+    prereg: dict[str, Any],
+    prereg_sha: str,
+    revision: str,
+    label: str,
+    directory: Path,
+    evaluation_dir: Path | None = None,
+) -> tuple[Path, dict[str, Any]]:
+    """The registered recovery's report (v5.2.4+), built only from persisted Neon records: the
+    carried-over results of the interrupted runs plus the recovery runs' results. Every registered
+    combination must appear exactly once; anything missing, extra, unlinked or unfinished makes the
+    report incomplete. It is never publishable (RECOVERY_DISCLOSURE)."""
+    import asyncio
+
+    from sqlalchemy import select
+
+    from app.db.models import EvaluationCase, EvaluationResult, RequestAttempt, RequestLog
+    from app.evaluation.dataset import (
+        EVAL_ROOT,
+        apply_review_attestation,
+        apply_scoring_amendment,
+        load_execution_recovery,
+        load_execution_schedule,
+    )
+    from app.evaluation.runner import with_db_retry
+
+    root = evaluation_dir or EVAL_ROOT
+    schedule = load_execution_schedule(dataset, prereg, root)
+    recovery = load_execution_recovery(dataset, prereg, schedule, root)
+    if recovery is None:
+        raise ValueError("this pre-registration registers no execution recovery")
+    amended, _ = apply_scoring_amendment(dataset, prereg, root)
+    reviewed, _ = apply_review_attestation(amended, prereg, root)
+    by_case = {c.id: c for c in amended.cases}
+    original = {s: str(r) for s, r in recovery["original_runs"].items()}
+
+    async def fetch() -> tuple[list[Any], list[Any], dict[str, Any], dict[str, list[Any]]]:
+        async with db.sessionmaker() as session:
+            runs = list((await session.scalars(select(EvaluationRun))).all())
+            wanted = [
+                r
+                for r in runs
+                if str(r.id) in original.values()
+                or ((r.config_snapshot or {}).get("execution_recovery") or {}).get("sha256")
+                == recovery["sha256"]
+            ]
+            ids = [r.id for r in wanted]
+            rows = list(
+                (
+                    await session.execute(
+                        select(
+                            EvaluationResult,
+                            EvaluationCase.case_key,
+                            EvaluationRun.strategy,
+                        )
+                        .join(EvaluationCase, EvaluationCase.id == EvaluationResult.case_id)
+                        .join(EvaluationRun, EvaluationRun.id == EvaluationResult.run_id)
+                        .where(EvaluationResult.run_id.in_(ids))
+                    )
+                ).all()
+            )
+            log_ids = [r[0].request_log_id for r in rows if r[0].request_log_id]
+            logs = {
+                str(log.id): log
+                for log in (
+                    await session.scalars(select(RequestLog).where(RequestLog.id.in_(log_ids)))
+                ).all()
+            }
+            attempts: dict[str, list[Any]] = {}
+            for a in (
+                await session.scalars(
+                    select(RequestAttempt).where(RequestAttempt.request_id.in_(log_ids))
+                )
+            ).all():
+                attempts.setdefault(str(a.request_id), []).append(a)
+            return wanted, rows, logs, attempts
+
+    runs, rows, logs, attempts = await with_db_retry(
+        fetch, "read the recovery's results", asyncio.sleep
+    )
+    problems: list[str] = []
+    run_by_id = {str(r.id): r for r in runs}
+    for strategy, rid in original.items():
+        run = run_by_id.get(rid)
+        if run is None or run.strategy != strategy or run.status != "failed":
+            problems.append(f"original {strategy} run {rid} is missing or not `failed`")
+    recovery_runs = [r for r in runs if str(r.id) not in original.values()]
+    rec_by_strategy: dict[str, Any] = {}
+    for run in recovery_runs:
+        if run.strategy in rec_by_strategy:
+            problems.append(f"more than one recovery run for {run.strategy}")
+        rec_by_strategy[run.strategy] = run
+    needed = {s for _, s in recovery["execute"]}
+    for strategy in sorted(needed - set(rec_by_strategy)):
+        problems.append(f"no recovery run for {strategy}")
+    for run in recovery_runs:
+        if run.status == "running":
+            problems.append(f"recovery run {run.id} ({run.strategy}) is still `running`")
+    carried = {(str(c["case_id"]), str(c["strategy"])): c for c in recovery["carried_over"]}
+    execute = set(recovery["execute"])
+    seen: dict[tuple[str, str], Any] = {}
+    outcomes: list[CaseOutcome] = []
+    for result, case_key, strategy in rows:
+        result.strategy = strategy
+        key = (case_key, strategy)
+        rid = str(result.run_id)
+        if rid in original.values():
+            entry = carried.get(key)
+            if entry is None or str(entry["evaluation_result_id"]) != str(result.id):
+                problems.append(
+                    f"original run result {strategy}/{case_key} is not a registered carry-over"
+                )
+                continue
+            if str(entry["request_log_id"]) != str(result.request_log_id):
+                problems.append(
+                    f"carried-over {strategy}/{case_key} request log differs from the registration"
+                )
+            source = "carried_over"
+        else:
+            if key not in execute:
+                problems.append(
+                    f"recovery run result {strategy}/{case_key} was not registered for execution"
+                )
+                continue
+            source = "recovered"
+        if key in seen:
+            problems.append(f"duplicate result for {strategy}/{case_key}")
+            continue
+        log = logs.get(str(result.request_log_id)) if result.request_log_id else None
+        if log is None:
+            problems.append(f"{strategy}/{case_key} has no linked request log")
+        if result.simulated:
+            problems.append(f"{strategy}/{case_key} is simulated")
+        run = run_by_id[rid]
+        tier_of = {
+            m["key"]: m["tier"]
+            for m in (run.config_snapshot or {}).get("models") or []
+            if "key" in m and "tier" in m
+        }
+        seen[key] = result
+        outcomes.append(
+            _outcome_from_db(
+                result,
+                by_case[case_key],
+                log,
+                attempts.get(str(result.request_log_id), []),
+                tier_of,
+                source,
+            )
+        )
+    order = recovery["order"]
+    outcomes.sort(key=lambda o: order.index((o.case_id, o.strategy)))
+    missing = [{"case_id": c, "strategy": s} for c, s in order if (c, s) not in seen]
+    incomplete = bool(missing or problems) or any(r.status != "completed" for r in recovery_runs)
+    first = rec_by_strategy.get("baseline_premium") or (recovery_runs[0] if recovery_runs else None)
+    snapshot = dict(first.config_snapshot) if first is not None else {}
+    started = min((r.started_at for r in runs), default=None)
+    finished = max((r.finished_at for r in runs if r.finished_at), default=None)
+    result = BenchmarkResult(
+        label=label,
+        simulated=any(o.simulated for o in outcomes),
+        dataset=dataset.name,
+        dataset_sha256=dataset.sha256,
+        dataset_fully_reviewed=reviewed.fully_reviewed,
+        preregistration=prereg,
+        preregistration_sha256=prereg_sha,
+        started_at=started.isoformat() if started else "",
+        finished_at=finished.isoformat() if finished else "",
+        config_snapshot=snapshot,
+        run_ids={f"recovery:{s}": str(r.id) for s, r in rec_by_strategy.items()}
+        | {f"original:{s}": r for s, r in original.items()},
+        outcomes=outcomes,
+        incomplete=incomplete,
+    )
+    summary = build_summary(result)
+    strategies = recovery["strategies"]
+    summary.update(
+        {
+            "report_kind": "execution_recovery",
+            "title": f"Day {recovery['day']} Recovery — disclosed post-hoc completion ({revision})",
+            "status": "incomplete" if incomplete else "complete",
+            "incomplete": incomplete,
+            "publishable": False,
+            "publishable_reasons": [*summary["publishable_reasons"], RECOVERY_DISCLOSURE],
+            "expected_results": len(order),
+            "observed_results": len(outcomes),
+            "missing_results": len(missing),
+            "missing_combinations": missing,
+            "sources": dict(Counter(o.details["provenance"]["source"] for o in outcomes)),
+            "per_strategy_completion": {
+                s: f"{sum(o.strategy == s for o in outcomes)}/{sum(x == s for _, x in order)}"
+                for s in strategies
+            },
+            "per_case": {
+                cid: {
+                    o.strategy: {
+                        "passed": o.passed,
+                        "model": o.model,
+                        "source": o.details["provenance"]["source"],
+                    }
+                    for o in outcomes
+                    if o.case_id == cid
+                }
+                for cid in dict.fromkeys(c for c, _ in order)
+            },
+            "execution_recovery": {
+                "file": recovery["file"],
+                "sha256": recovery["sha256"],
+                "day": recovery["day"],
+                "original_runs": [
+                    {
+                        "strategy": s,
+                        "run_id": rid,
+                        "status": getattr(run_by_id.get(rid), "status", None),
+                    }
+                    for s, rid in original.items()
+                ],
+                "recovery_runs": [
+                    {
+                        "strategy": r.strategy,
+                        "run_id": str(r.id),
+                        "status": r.status,
+                        "started_at": r.started_at.isoformat() if r.started_at else None,
+                        "finished_at": r.finished_at.isoformat() if r.finished_at else None,
+                    }
+                    for r in sorted(recovery_runs, key=lambda r: strategies.index(r.strategy))
+                ],
+            },
+            "validation_problems": problems,
+        }
+    )
+    out = directory / label
+    out.mkdir(parents=True, exist_ok=False)
+    (out / "summary.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+    md = [
+        f"# {summary['title']}",
+        "",
+        f"> **{summary['status'].upper()}. NOT PUBLISHABLE.** {RECOVERY_DISCLOSURE[0].upper()}"
+        f"{RECOVERY_DISCLOSURE[1:]}.",
+        "",
+        f"- Expected {len(order)}; observed {len(outcomes)} "
+        f"({summary['sources']}); missing {len(missing)}.",
+        "- Original runs (interrupted, `failed`): "
+        + "; ".join(f"{s} `{r}`" for s, r in original.items()),
+        "- Recovery runs: "
+        + "; ".join(
+            f"{x['strategy']} `{x['run_id']}` ({x['status']})"
+            for x in summary["execution_recovery"]["recovery_runs"]
+        ),
+    ]
+    md += [f"- **Validation problem:** {p}" for p in problems]
+    md += [f"- **Missing:** {m['strategy']}/{m['case_id']}" for m in missing]
+    md += ["", "## Case-wise results", "", "| Case | " + " | ".join(strategies) + " |"]
+    md.append("|---|" + "---|" * len(strategies))
+    for cid, cells in summary["per_case"].items():
+        md.append(
+            f"| {cid} | "
+            + " | ".join(
+                (
+                    f"{'pass' if cells[s]['passed'] else 'fail'} ({cells[s]['model']}, "
+                    f"{'carried' if cells[s]['source'] == 'carried_over' else 'recovered'})"
+                )
+                if s in cells
+                else "**missing**"
+                for s in strategies
+            )
+            + " |"
+        )
+    body = _markdown(summary).replace(f"# Benchmark report: {label}", "## Strategy-wise results", 1)
+    (out / "summary.md").write_text("\n".join(md) + "\n\n" + body, encoding="utf-8")
+    with (out / "results.jsonl").open("w", encoding="utf-8") as handle:
+        for row_dict in outcome_dicts(result):
+            handle.write(json.dumps(row_dict, default=str) + "\n")
+    return out, summary
+
+
 def combine_scheduled_reports(
     day_dirs: list[Path],
     *,

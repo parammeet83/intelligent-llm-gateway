@@ -1,0 +1,351 @@
+# Experiment manifest for routewise_bench_v5.2.4 (schema 6) of dataset routewise_bench_v5.
+# Pre-registered: its SHA-256 is recorded in preregistration_routewise_bench_v5.2.4.yaml.
+# Do not edit; create a new revision if the configuration has to change.
+schema: 6
+manifest: experiment-manifest-routewise_bench_v5.2.4
+revision: routewise_bench_v5.2.4
+created_on: '2026-11-05'
+created_at_utc: '2026-11-05T08:56:09Z'
+dataset: routewise_bench_v5
+dataset_sha256: 76a4d1906b3e90bff6ed504f67067bf891923332fa00256227e303c11dea27bd
+notes:
+- 'Disclosed post-hoc Day 2 recovery amendment of routewise_bench_v5.2.3: the same configuration, pacing,
+  per-attempt quota and evidence, plus the recovery plan as evidence.'
+- 'Changed application files (database reliability, recovery execution and reporting): app/cli.py, app/evaluation/dataset.py,
+  app/evaluation/manifest.py, app/evaluation/preflight.py, app/evaluation/report.py, app/evaluation/runner.py.'
+- No secrets are recorded. File hashes are SHA-256 over LF-normalised text.
+pinned:
+  files:
+    routing_policy:
+      path: backend/config/routing_policy.yaml
+      sha256: 271106eaa7116211cc198ef5eddc8205f2e3b38e32e7d5fb6ceb37f3a0bb48dc
+    model_registry:
+      path: backend/config/models.yaml
+      sha256: c5fc037793d0e80bf4dc9568a137dd7587229f3f14adc83a1bb48af9c7cc7dd0
+    app/__init__.py:
+      path: backend/app/__init__.py
+      sha256: 91447944015cec709e8aa7655f7e9d64e1e4508e7023a57fe3746911c0fc6fed
+    app/accounting/__init__.py:
+      path: backend/app/accounting/__init__.py
+      sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    app/accounting/budget.py:
+      path: backend/app/accounting/budget.py
+      sha256: 7dd2d736ab530f77d463a592eb4faee1aaf21cb5a8ac8f301a1270574861895f
+    app/accounting/cost.py:
+      path: backend/app/accounting/cost.py
+      sha256: 844071eacc3217ad9582b48d0bf8bf2eb40a7a68e48ee89408bb612582791a9d
+    app/api/__init__.py:
+      path: backend/app/api/__init__.py
+      sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    app/api/v1/__init__.py:
+      path: backend/app/api/v1/__init__.py
+      sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    app/api/v1/schemas.py:
+      path: backend/app/api/v1/schemas.py
+      sha256: afea365265f83d0b5b19deca3018dc62ff235d2b0d2b95ca1387400ff802a63a
+    app/auth/__init__.py:
+      path: backend/app/auth/__init__.py
+      sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    app/auth/api_keys.py:
+      path: backend/app/auth/api_keys.py
+      sha256: 8e96f23f9c56daa94fef9a10f207d88c73d1087be41a211400f48133587a471e
+    app/auth/keys.py:
+      path: backend/app/auth/keys.py
+      sha256: 30994824d9871217c159ea819f981fe0604f9a127d5daa0def69dc8f31a146fa
+    app/cli.py:
+      path: backend/app/cli.py
+      sha256: c331d794c0f7f8b54206d7a6071fefb1ada2e7b1366489ebe10666c0f33c4b14
+    app/core/__init__.py:
+      path: backend/app/core/__init__.py
+      sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    app/core/config.py:
+      path: backend/app/core/config.py
+      sha256: 8c9c684e0e8e3f1690a905c9e66d62ea5673559ee380004db01ca2796d5b3c98
+    app/core/errors.py:
+      path: backend/app/core/errors.py
+      sha256: a751caa9f3d9fa59d0c8c51e8f83536828fc8fee86a1926ae0c401fa449c51bd
+    app/core/logging.py:
+      path: backend/app/core/logging.py
+      sha256: 127a5bc8a3b53a3b5e7776130852a9507bd58190ce5b5310a91d89d38bd9ff25
+    app/db/__init__.py:
+      path: backend/app/db/__init__.py
+      sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    app/db/base.py:
+      path: backend/app/db/base.py
+      sha256: 2e32b128acf9000018592e5c6a7d6ae1d82443987069dbcd9b09d6bc01f70a53
+    app/db/models.py:
+      path: backend/app/db/models.py
+      sha256: 74fe07805b208510c66c29d39402f0628cbd155571c287a3ce04ce4c345f25d1
+    app/db/session.py:
+      path: backend/app/db/session.py
+      sha256: 82fb88d3935f318390dd4c639c472f6dc5e701e1ba31ee0eb4716c161cbce07b
+    app/evaluation/__init__.py:
+      path: backend/app/evaluation/__init__.py
+      sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    app/evaluation/dataset.py:
+      path: backend/app/evaluation/dataset.py
+      sha256: 2625a259f9b891afe50a8d3c5e3cc1b278c5d3c8974069992dec206f172cd619
+    app/evaluation/manifest.py:
+      path: backend/app/evaluation/manifest.py
+      sha256: d2e57e7bfcd002c330695c56d113f36cff41a8078c4649d17840a5fc098e9d62
+    app/evaluation/pacing.py:
+      path: backend/app/evaluation/pacing.py
+      sha256: 4f42b83abaa2b993c4f24c086bcaf5ccf3fdb5a2cc2ea43924c4c3c1aa8a9098
+    app/evaluation/preflight.py:
+      path: backend/app/evaluation/preflight.py
+      sha256: 1b2b114ba25918653a28f73c27d836bbcd70b0c98cc4c2685aec63a46b9c77f5
+    app/evaluation/report.py:
+      path: backend/app/evaluation/report.py
+      sha256: 2b5cc2d18a0e0792ffbddf97554aedbe9066b1674f194f5ccdb9671b3b9b9a88
+    app/evaluation/runner.py:
+      path: backend/app/evaluation/runner.py
+      sha256: 20210fa2d2e43f2ebfafaa10cabdb7de05f30e24b88980d6765c281237486a63
+    app/evaluation/scorers.py:
+      path: backend/app/evaluation/scorers.py
+      sha256: 1f32a37141c30c71e98e5504a54ee9218e3344ab105599bd04c55e0ca3fd9101
+    app/evaluation/stats.py:
+      path: backend/app/evaluation/stats.py
+      sha256: 38fc74dd77f9353e55f22b11c23a6cdb7c997cc8d1dbc54639ee16ed294f5be6
+    app/providers/__init__.py:
+      path: backend/app/providers/__init__.py
+      sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    app/providers/base.py:
+      path: backend/app/providers/base.py
+      sha256: 9b6245d8927a9e856f9467879dc1acc54efc0ad5090e15f1057f2815a6282673
+    app/providers/catalog.py:
+      path: backend/app/providers/catalog.py
+      sha256: 5ad51a507f9474c0004fed624bdf555b93f94767348d7d2f16edbe94375f7be2
+    app/providers/groq.py:
+      path: backend/app/providers/groq.py
+      sha256: 8d673abe0591b5d214c921de10cfe83a6383084dd31fcafb68308051bcf5e88b
+    app/providers/http.py:
+      path: backend/app/providers/http.py
+      sha256: 31896a87102118618233ff2d4b8d203ed9fedb8b74bac47c5f634fcbe639d1bb
+    app/providers/mock.py:
+      path: backend/app/providers/mock.py
+      sha256: 63b7a9c5344d316a237a8c2c74756e474fc361d4d8178012ec43aabcf635a6de
+    app/providers/ollama.py:
+      path: backend/app/providers/ollama.py
+      sha256: 63a21ede52fd7889d1b81c67dd4a379a4b92318514fba157a2e2ea93261ac6be
+    app/providers/openrouter.py:
+      path: backend/app/providers/openrouter.py
+      sha256: 19ffeea8d4b183aa0bb5d87a47dbe9a17b074d0c8c7b711f1d4e7dee34e719a2
+    app/providers/registry.py:
+      path: backend/app/providers/registry.py
+      sha256: df756286d75bd913ed2af102a97cf7dc477fe608853ca40622c458a2e10d2192
+    app/resilience/__init__.py:
+      path: backend/app/resilience/__init__.py
+      sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    app/resilience/health.py:
+      path: backend/app/resilience/health.py
+      sha256: d7f1db6b1612f810560dfb75c2b65b69de2cc85f2ff473e5d5d6d957dc65a1ed
+    app/routing/__init__.py:
+      path: backend/app/routing/__init__.py
+      sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    app/routing/config.py:
+      path: backend/app/routing/config.py
+      sha256: 1b3c01e89ed60182743d14e0a534162f450ee5d467e30f491f76617f0697e81e
+    app/routing/engine.py:
+      path: backend/app/routing/engine.py
+      sha256: 9f2b74a0037cb548f40a8b6446f6738cd242fbbe5be36e2ee1d82bac8ac45ca5
+    app/routing/features.py:
+      path: backend/app/routing/features.py
+      sha256: 0207d8a7dbd52a6e950ebc35299ce15e777b2e2024e2349655db2e6685521526
+    app/seed.py:
+      path: backend/app/seed.py
+      sha256: 98efa18b489ba0ed8a115f9ed26f23828e3f3ee90e32984ced7be6cdac0a961a
+    app/services/__init__.py:
+      path: backend/app/services/__init__.py
+      sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    app/services/executor.py:
+      path: backend/app/services/executor.py
+      sha256: 3d55a773aa201d1433b0b9252b4e78d9bf6c97f8f9c42d84a6dd8727c0ee0dbb
+    app/services/factory.py:
+      path: backend/app/services/factory.py
+      sha256: 1bbcd31821303a441a95ff5674c6d03260f2afc5364ff490b31a0e1a25a9aaeb
+    app/services/gateway.py:
+      path: backend/app/services/gateway.py
+      sha256: a85721de3a0a0d5811e13149de8eab16e463ed77dd5be3bef11720c42167263a
+    app/tenancy/__init__.py:
+      path: backend/app/tenancy/__init__.py
+      sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    app/tenancy/rate_limit.py:
+      path: backend/app/tenancy/rate_limit.py
+      sha256: ec557144552a0a6575eb2079bfd50462237ec837bd15f5bfb3704dc8e22f53b6
+    dependency_lock:
+      path: backend/uv.lock
+      sha256: da6b69d674d389cd764fb72de3015cfb22f7f4a59fda01cb70a62d24fa5bf955
+    project_metadata:
+      path: backend/pyproject.toml
+      sha256: 39ca25b248af8b5cf76ede76bbb443a35bdc417eb8efb449aa6e478a87c31c10
+    evidence/dataset:
+      path: evaluation/datasets/routewise_bench_v5.jsonl
+      sha256: 76a4d1906b3e90bff6ed504f67067bf891923332fa00256227e303c11dea27bd
+    evidence/dataset_metadata:
+      path: evaluation/datasets/routewise_bench_v5.meta.yaml
+      sha256: 262dde03c4018fe1f79c1fe8760f32cfcce3e1624284ea6b56eafed432806ada
+    evidence/scoring_amendment:
+      path: evaluation/scoring_amendment_routewise_bench_v5.2.1.yaml
+      sha256: bab04a1a24f2f7d52538d49472edd52579ce08ded0ed10460225498b4a4c8431
+    evidence/review_attestation:
+      path: evaluation/reviews/routewise_bench_v5.2.1_HUMAN_REVIEW_ATTESTATION.yaml
+      sha256: b7099444ac312eef336ebacbdb6e93335ba366f9de452be88cb17a97524c59ed
+    evidence/execution_schedule:
+      path: evaluation/execution_schedule_routewise_bench_v5.2.3.yaml
+      sha256: c74699c11ec73ef08e0d883fedf7ffe5b5bc996c84de8ba9abbb0207b94756e6
+    evidence/execution_recovery:
+      path: evaluation/execution_recovery_routewise_bench_v5.2.4.yaml
+      sha256: e3c46ba492fd5cf5ba33cb13b672c2771d273563ec01ca2b64e5082472f7a1da
+  routing_policy:
+    version: rw-2026.11-v1
+    tier_thresholds:
+      medium: 35.0
+      premium: 65.0
+    task_type_priors:
+      classification: 5.0
+      extraction: 15.0
+      chat: 15.0
+      qa: 20.0
+      summarization: 25.0
+      creative: 30.0
+      code: 45.0
+      reasoning: 50.0
+    weights:
+      input_tokens_per_1k: 3.0
+      input_tokens_max: 15.0
+      output_over_1024: 6.0
+      output_over_4096: 12.0
+      json_output: 5.0
+      multi_step_per_match: 4.0
+      multi_step_max: 12.0
+      constraint_per_match: 2.0
+      constraint_max: 8.0
+      reasoning_per_match: 6.0
+      reasoning_max: 18.0
+      math_per_match: 4.0
+      math_max: 12.0
+      code_block: 10.0
+    high_quality_floor: premium
+    selection: cheapest_capable
+    fallback_only_providers:
+    - openrouter
+    latency:
+      min_samples: 5
+    budget:
+      input_estimate_safety_factor: 1.25
+  models:
+  - key: groq/openai/gpt-oss-20b
+    provider: groq
+    provider_model_id: openai/gpt-oss-20b
+    tier: small
+    billing: free
+    capabilities:
+    - json_mode
+    - json_schema
+    - reasoning
+    reasoning_effort: low
+    timeout_s: null
+    verified_on: '2026-11-04'
+    pricing:
+      input_usd_per_mtok: '0.075'
+      output_usd_per_mtok: '0.30'
+      effective_date: '2026-11-03'
+      source_url: https://console.groq.com/docs/models
+  - key: groq/openai/gpt-oss-120b
+    provider: groq
+    provider_model_id: openai/gpt-oss-120b
+    tier: premium
+    billing: free
+    capabilities:
+    - json_mode
+    - json_schema
+    - reasoning
+    reasoning_effort: null
+    timeout_s: null
+    verified_on: '2026-11-04'
+    pricing:
+      input_usd_per_mtok: '0.15'
+      output_usd_per_mtok: '0.60'
+      effective_date: '2026-11-03'
+      source_url: https://console.groq.com/docs/models
+  expected_models:
+  - groq/openai/gpt-oss-120b
+  - groq/openai/gpt-oss-20b
+  providers:
+    groq:
+      simulated: false
+      charge_basis: free_tier
+      max_retries: 1
+  execution:
+    request_deadline_s: 60.0
+    provider_timeout_s: 30.0
+    retry_backoff_base_s: 0.5
+    retry_backoff_cap_s: 4.0
+    circuit_failure_threshold: 3
+    circuit_open_s: 30.0
+    allow_paid_models: false
+    verify_model_catalog: true
+    groq_enabled: true
+    groq_billing_plan: free
+    openrouter_enabled: false
+    ollama_enabled: false
+    mock_provider_enabled: false
+    app_env: development
+    temperature: 0.0
+    strategies:
+      baseline_premium:
+        policy_overrides: {}
+        request_overrides:
+          preferred_tier: premium
+      routewise:
+        policy_overrides: {}
+        request_overrides: {}
+      routewise_tier_first:
+        policy_overrides:
+          selection: lowest_tier_first
+        request_overrides: {}
+    pacing:
+      concurrency: 1
+      delay_s: 6.0
+      limit_cases: null
+      allow_code_exec: false
+    attempt_quota:
+      groq:
+        scope: all Groq models combined (stricter than Groq's per-model limits)
+        tokens_per_minute: 8000
+        per_minute_safety: 0.75
+        requests_per_day: 1000
+        per_day_safety: 0.9
+        requests_per_minute_cap: 10
+        tokens_per_day: null
+        operator_daily_budget_required: true
+        framing_allowance_tokens: 256
+        window_s: 60.0
+        verification:
+          tokens_per_minute: self-imposed aggregate cap across all Groq models = 8000, the value observed
+            in x-ratelimit-limit-tokens for openai/gpt-oss-20b on this key (2026-11-04, one response).
+            openai/gpt-oss-120b's and the Free plan's limits are NOT known and NOT inferred from it; a
+            lower header value tightens the cap at run time
+          requests_per_day: self-imposed aggregate cap = 1000, the value observed in x-ratelimit-limit-requests
+            for openai/gpt-oss-20b (one response); 120B / Free-plan limits not known, not inferred
+          requests_per_minute_cap: self-imposed; Groq's RPM for this account is not verified
+          tokens_per_day: NOT verified; operator-supplied remaining budget required
+          framing_allowance_tokens: 'EMPIRICAL, not a guaranteed bound: one observed request reported
+            83 input tokens for a 53-byte prompt (framing <= 82); 256 is ~3x that. A reported input above
+            the bound stops the run after that attempt'
+          content_bound: 'strict for byte-level BPE: at most one token per UTF-8 byte of content'
+          quota_scope: the operator must ensure no other traffic uses the same Groq organisation's quota
+            during the run; other traffic is otherwise visible only through rate-limit headers
+        ledger_format: 2
+        ledger_concurrency: exclusive OS file lock per transaction; latest state re-read under the lock
+        operator_must_isolate_quota: true
+    runtime:
+      python: '3.12'
+      implementation: cpython
+      network_env_present:
+        HTTP_PROXY: false
+        HTTPS_PROXY: false
+        ALL_PROXY: false
+        NO_PROXY: false
+        SSL_CERT_FILE: false
+        SSL_CERT_DIR: false

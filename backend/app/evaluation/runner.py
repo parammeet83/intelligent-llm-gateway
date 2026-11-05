@@ -8,8 +8,10 @@ accounting, request logging) under a dedicated evaluation tenant with no budget.
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 import uuid
+from collections import Counter
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -17,7 +19,10 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select
+import asyncpg
+from sqlalchemy import func, select, update
+from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
+from sqlalchemy.exc import InterfaceError as SAInterfaceError
 
 from app.api.v1.schemas import GenerateRequest
 from app.auth.keys import AuthenticatedTenant
@@ -31,6 +36,7 @@ from app.evaluation.dataset import (
     Dataset,
     apply_review_attestation,
     apply_scoring_amendment,
+    load_execution_recovery,
     load_execution_revision,
     load_execution_schedule,
     load_preregistration,
@@ -57,6 +63,91 @@ EXCERPT_CHARS = 600
 RUN_CONCURRENCY = 1
 # Persistent per-attempt quota ledger (git-ignored with the other reports).
 DEFAULT_LEDGER = EVAL_ROOT / "reports" / "quota_ledger.json"
+
+# v5.2.4: bounded backoff for database operations (6 tries over about 31 s). A Neon outage that
+# outlasts it stops the run (fail closed) instead of losing or guessing a result.
+DB_RETRY_DELAYS_S = (1.0, 2.0, 4.0, 8.0, 16.0)
+
+
+class DatabaseUnavailable(RuntimeError):
+    """The database couldn't record or confirm benchmark state within the bounded retries."""
+
+
+class CombinationStateUnknown(RuntimeError):
+    """A database error hit a combination after a provider attempt may have been sent. Such a
+    combination is never retried (that could repeat a provider request); the run stops."""
+
+
+def is_transient_db_error(error: BaseException) -> bool:
+    """Connection-level database failures (timeouts, dropped or refused connections). A constraint
+    violation is not transient and is never retried."""
+    if isinstance(error, IntegrityError):
+        return False
+    return isinstance(
+        error,
+        (
+            DBAPIError,
+            OperationalError,
+            SAInterfaceError,
+            asyncpg.PostgresConnectionError,
+            asyncpg.InterfaceError,
+            ConnectionError,
+            TimeoutError,
+            OSError,
+        ),
+    )
+
+
+async def with_db_retry[T](
+    op: Callable[[], Awaitable[T]],
+    what: str,
+    sleep: Callable[[float], Awaitable[None]],
+) -> T:
+    """Run a database operation, retrying transient failures with bounded backoff. Callers make
+    `op` idempotent, so a retry after an ambiguous commit can't duplicate anything."""
+    last: BaseException | None = None
+    for attempt, delay in enumerate((0.0, *DB_RETRY_DELAYS_S)):
+        if delay:
+            await sleep(delay)
+        try:
+            return await op()
+        except Exception as error:
+            if not is_transient_db_error(error):
+                raise
+            last = error
+            logger.warning(
+                "benchmark_db_retry",
+                extra={"operation": what, "attempt": attempt + 1, "error": type(error).__name__},
+            )
+    raise DatabaseUnavailable(
+        f"{what}: the database was unavailable after {len(DB_RETRY_DELAYS_S) + 1} attempts"
+    ) from last
+
+
+async def finalize_runs(
+    db: Database,
+    run_ids: list[str],
+    status: str,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+) -> int:
+    """Move these runs from `running` to `status` (idempotent: runs already finished keep their
+    status and finish time). Retried with backoff. Returns the number of runs changed."""
+
+    async def once() -> int:
+        async with db.sessionmaker() as session:
+            changed = await session.execute(
+                update(EvaluationRun)
+                .where(
+                    EvaluationRun.id.in_([uuid.UUID(r) for r in run_ids]),
+                    EvaluationRun.status == "running",
+                )
+                .values(status=status, finished_at=datetime.now(UTC))
+            )
+            await session.commit()
+            return int(getattr(changed, "rowcount", 0) or 0)
+
+    return await with_db_retry(once, "finalise evaluation runs", sleep)
+
 
 # Strategy name -> (policy overrides, request overrides). Same cases, same pipeline.
 STRATEGIES: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
@@ -258,6 +349,20 @@ async def run_benchmark(
         if limit_cases:
             raise ValueError("limit_cases can't be combined with a registered execution schedule")
         indexed = schedule_day_cases(dataset, schedule, schedule_day)
+    # v5.2.4+: a registered, disclosed recovery of an interrupted day. Only its listed combinations
+    # run; genuine results the interrupted runs already persisted are carried over, never re-run.
+    recovery = load_execution_recovery(dataset, prereg, schedule)
+    only: set[tuple[str, str]] | None = None
+    if recovery is not None:
+        if schedule_day != recovery["day"]:
+            raise ValueError(
+                f"the registered recovery is for day {recovery['day']}: "
+                f"pass --schedule-day {recovery['day']}"
+            )
+        absent = {s for _, s in recovery["execute"]} - set(strategies)
+        if absent:
+            raise ValueError(f"the registered recovery needs strategies {sorted(absent)}")
+        only = set(recovery["execute"])
     planned = dataset.model_copy(update={"cases": [case for _, case in indexed]})
     from app.evaluation.manifest import check_manifest
 
@@ -288,7 +393,7 @@ async def run_benchmark(
         ((quota_provider, quota),) = attempt_quotas.items()
         ledger = QuotaLedger(ledger_path or DEFAULT_LEDGER, quota_provider)
         pre = preflight.evaluate(
-            preflight.plan(planned, strategies, settings, providers, quota),
+            preflight.plan(planned, strategies, settings, providers, quota, only=only),
             quota,
             daily_budget,
             ledger,
@@ -313,6 +418,8 @@ async def run_benchmark(
             "accept_incomplete_risk": accept_incomplete_risk,
         }
     simulated = all(p.simulated for p in providers.values())
+    if recovery is not None:
+        await _refuse_started_recovery(db, recovery["sha256"], sleep)
     tenant = await _eval_tenant(db)
     auth = AuthenticatedTenant(tenant=tenant, api_key_id=None, key_prefix="internal")
     base_policy = load_policy(settings.routing_policy_path)
@@ -351,6 +458,18 @@ async def run_benchmark(
             "utc_date": started.astimezone(UTC).date().isoformat(),
         }
     )
+    snapshot["execution_recovery"] = (
+        None
+        if recovery is None
+        else {
+            "file": recovery["file"],
+            "sha256": recovery["sha256"],
+            "day": recovery["day"],
+            "executes": [list(c) for c in recovery["execute"]],
+            "carried_over": len(recovery["carried_over"]),
+            "original_runs": recovery["original_runs"],
+        }
+    )
     snapshot["quota"] = quota_report
     async with db.sessionmaker() as session:
         for name in strategies:
@@ -379,10 +498,13 @@ async def run_benchmark(
     outcomes: list[CaseOutcome] = []
     incomplete = False
     stopped = False
+    failure: BaseException | None = None
     try:
         for index, case in indexed:
             order = strategies if index % 2 == 0 else list(reversed(strategies))
             for name in order:
+                if only is not None and (case.id, name) not in only:
+                    continue  # recovery: carried over from the interrupted run, never re-run
                 if pacer is not None:
                     # Wait (outside the measured request) until the first attempt fits; every
                     # attempt then reserves its own quota inside PacedProvider.
@@ -390,12 +512,17 @@ async def run_benchmark(
                         [case.prompt], case.max_output_tokens
                     )
                     await pacer.wait_for(in_bound + out_bound)
-                outcome = await _run_case(
-                    gateways[name], auth, case, name, run_ids[name], allow_code_exec
+                outcome = await _run_case_retrying_db(
+                    functools.partial(
+                        _run_case, gateways[name], auth, case, name, run_ids[name], allow_code_exec
+                    ),
+                    pacer,
+                    sleep,
+                    f"{name}/{case.id}",
                 )
                 outcome.simulated = outcome.simulated or simulated
                 outcomes.append(outcome)
-                await _persist(db, run_ids[name], case_ids[case.id], outcome)
+                await _persist(db, run_ids[name], case_ids[case.id], outcome, sleep)
                 if pacer is not None and pacer.exhausted is not None:
                     # A blocked or over-bound attempt: stop, never complete over budget.
                     stopped = True
@@ -405,11 +532,18 @@ async def run_benchmark(
             if stopped:
                 break
         incomplete = stopped
+        # A run is complete only if the database confirms every outcome was persisted.
+        if not await _all_persisted(db, run_ids, outcomes, sleep):
+            incomplete = True
     except QuotaExhausted:
         # Stop rather than exceed a limit; the run is incomplete and never publishable.
         incomplete = True
-    except (KeyboardInterrupt, asyncio.CancelledError):
+    except BaseException as error:
+        # Any other failure (a database outage, an interrupt, a bug) also makes the run incomplete.
+        # It stays the exception the caller sees: finalisation problems below are attached to it
+        # as a note and never raised over it.
         incomplete = True
+        failure = error
         raise
     finally:
         if pacer is not None and quota_report is not None:
@@ -418,13 +552,20 @@ async def run_benchmark(
             if pacer.exhausted:
                 incomplete = True
                 logger.warning("benchmark_stopped_quota", extra={"reason": pacer.exhausted})
-        async with db.sessionmaker() as session:
-            for rid in run_ids.values():
-                finished = await session.get(EvaluationRun, uuid.UUID(rid))
-                if finished is not None:
-                    finished.status = "failed" if incomplete else "completed"
-                    finished.finished_at = datetime.now(UTC)
-            await session.commit()
+        status = "failed" if incomplete else "completed"
+        try:
+            await finalize_runs(db, list(run_ids.values()), status, sleep)
+        except Exception as fin_error:
+            logger.error(
+                "benchmark_finalize_failed",
+                extra={"runs": sorted(run_ids.values()), "error": type(fin_error).__name__},
+            )
+            if failure is None:
+                raise
+            failure.add_note(
+                f"finalising runs {sorted(run_ids.values())} as {status!r} also failed "
+                f"({type(fin_error).__name__}); close them with `eval-finalize-runs`"
+            )
 
     return BenchmarkResult(
         label=label,
@@ -512,36 +653,142 @@ async def _run_case(
     )
 
 
-async def _persist(db: Database, run_id: str, case_uuid: uuid.UUID, outcome: CaseOutcome) -> None:
-    async with db.sessionmaker() as session:
-        session.add(
-            EvaluationResult(
-                run_id=uuid.UUID(run_id),
-                case_id=case_uuid,
-                request_log_id=uuid.UUID(outcome.request_id) if outcome.request_id else None,
-                passed=outcome.passed,
-                score=outcome.score,
-                provider=outcome.provider,
-                model_id=outcome.model,
-                routing_tier=outcome.tier,
-                fallback_used=outcome.fallback_used,
-                error_code=outcome.error_code,
-                scorer_details=outcome.details,
-                input_tokens=outcome.input_tokens,
-                output_tokens=outcome.output_tokens,
-                latency_ms=outcome.latency_ms,
-                estimated_list_cost_usd=Decimal(outcome.estimated_list_cost_usd)
-                if outcome.estimated_list_cost_usd
-                else None,
-                list_cost_status=outcome.list_cost_status,
-                actual_charge_usd=Decimal(outcome.actual_charge_usd)
-                if outcome.actual_charge_usd
-                else None,
-                cost_status=outcome.cost_status,
-                simulated=outcome.simulated,
+async def _run_case_retrying_db(
+    run: Callable[[], Awaitable[CaseOutcome]],
+    pacer: AttemptPacer | None,
+    sleep: Callable[[float], Awaitable[None]],
+    what: str,
+) -> CaseOutcome:
+    """Run one combination. A transient database error is retried (bounded backoff) only when the
+    quota ledger proves no provider attempt was reserved for it: PacedProvider reserves before every
+    transmission, so an unchanged count means nothing was sent. Otherwise the combination is never
+    retried (that could repeat a provider request) and the run stops (fail closed)."""
+    reserved_before = pacer.attempts if pacer is not None else None
+    last: BaseException | None = None
+    for attempt, delay in enumerate((0.0, *DB_RETRY_DELAYS_S)):
+        if delay:
+            await sleep(delay)
+        try:
+            return await run()
+        except Exception as error:
+            if not is_transient_db_error(error):
+                raise
+            if pacer is None or pacer.attempts != reserved_before:
+                raise CombinationStateUnknown(
+                    f"{what}: database error after a provider attempt may have been sent; "
+                    "not retried, run stopped"
+                ) from error
+            last = error
+            logger.warning(
+                "benchmark_db_retry",
+                extra={"operation": what, "attempt": attempt + 1, "error": type(error).__name__},
             )
+    raise DatabaseUnavailable(
+        f"{what}: the database was unavailable after {len(DB_RETRY_DELAYS_S) + 1} attempts "
+        "(no provider attempt was sent)"
+    ) from last
+
+
+async def _refuse_started_recovery(
+    db: Database, recovery_sha256: str, sleep: Callable[[float], Awaitable[None]]
+) -> None:
+    """A registered recovery runs once: refuse if any run already carries this recovery plan."""
+
+    async def once() -> list[str]:
+        async with db.sessionmaker() as session:
+            runs = (await session.scalars(select(EvaluationRun))).all()
+            return [
+                f"{r.id} ({r.status})"
+                for r in runs
+                if ((r.config_snapshot or {}).get("execution_recovery") or {}).get("sha256")
+                == recovery_sha256
+            ]
+
+    started = await with_db_retry(once, "check for an earlier recovery run", sleep)
+    if started:
+        raise ValueError(
+            f"the registered recovery has already started ({', '.join(started)}): it never restarts"
         )
-        await session.commit()
+
+
+async def _all_persisted(
+    db: Database,
+    run_ids: dict[str, str],
+    outcomes: list[CaseOutcome],
+    sleep: Callable[[float], Awaitable[None]],
+) -> bool:
+    """True only if the database holds exactly one result per outcome for every run."""
+    expected = Counter(o.strategy for o in outcomes)
+
+    async def once() -> dict[str, int]:
+        async with db.sessionmaker() as session:
+            rows = await session.execute(
+                select(EvaluationResult.run_id, func.count())
+                .where(EvaluationResult.run_id.in_([uuid.UUID(r) for r in run_ids.values()]))
+                .group_by(EvaluationResult.run_id)
+            )
+            return {str(run_id): int(n) for run_id, n in rows.all()}
+
+    persisted = await with_db_retry(once, "verify persisted results", sleep)
+    ok = all(persisted.get(rid, 0) == expected.get(name, 0) for name, rid in run_ids.items())
+    if not ok:
+        logger.error("benchmark_persisted_mismatch", extra={"persisted": persisted})
+    return ok
+
+
+async def _persist(
+    db: Database,
+    run_id: str,
+    case_uuid: uuid.UUID,
+    outcome: CaseOutcome,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+) -> None:
+    """Persist one result, idempotently: a retry first checks (run_id, case_id), so an earlier
+    attempt whose commit reached the database but whose acknowledgement was lost is never
+    duplicated. v5.2.4+ also stores the provider-reported model and the attempts (provenance)."""
+    fields: dict[str, Any] = {
+        "run_id": uuid.UUID(run_id),
+        "case_id": case_uuid,
+        "request_log_id": uuid.UUID(outcome.request_id) if outcome.request_id else None,
+        "passed": outcome.passed,
+        "score": outcome.score,
+        "provider": outcome.provider,
+        "model_id": outcome.model,
+        "routing_tier": outcome.tier,
+        "fallback_used": outcome.fallback_used,
+        "error_code": outcome.error_code,
+        "scorer_details": {
+            **outcome.details,
+            "provenance": {"answer_model": outcome.answer_model, "attempts": outcome.attempts},
+        },
+        "input_tokens": outcome.input_tokens,
+        "output_tokens": outcome.output_tokens,
+        "latency_ms": outcome.latency_ms,
+        "estimated_list_cost_usd": Decimal(outcome.estimated_list_cost_usd)
+        if outcome.estimated_list_cost_usd
+        else None,
+        "list_cost_status": outcome.list_cost_status,
+        "actual_charge_usd": Decimal(outcome.actual_charge_usd)
+        if outcome.actual_charge_usd
+        else None,
+        "cost_status": outcome.cost_status,
+        "simulated": outcome.simulated,
+    }
+
+    async def once() -> None:
+        async with db.sessionmaker() as session:
+            existing = await session.scalar(
+                select(EvaluationResult.id).where(
+                    EvaluationResult.run_id == fields["run_id"],
+                    EvaluationResult.case_id == case_uuid,
+                )
+            )
+            if existing is not None:
+                return
+            session.add(EvaluationResult(**fields))
+            await session.commit()
+
+    await with_db_retry(once, "persist evaluation result", sleep)
 
 
 def outcome_dicts(result: BenchmarkResult) -> list[dict[str, Any]]:

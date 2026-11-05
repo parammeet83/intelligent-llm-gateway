@@ -192,6 +192,7 @@ def evidence_files(prereg: dict[str, Any]) -> dict[str, str]:
         "scoring_amendment",
         "review_attestation",
         "execution_schedule",
+        "execution_recovery",
     ):
         if prereg.get(key):
             files[f"evidence/{key}"] = str(prereg[key]["file"])

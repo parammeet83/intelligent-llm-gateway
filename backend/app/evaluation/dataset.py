@@ -278,6 +278,71 @@ def schedule_day_cases(
     return [(index[cid], by_id[cid]) for cid in schedule["days"][day]]
 
 
+def scheduled_combinations(
+    dataset: Dataset, schedule: dict[str, Any], day: int, strategies: list[str]
+) -> list[tuple[str, str]]:
+    """Every (case ID, strategy) of a scheduled day in the registered execution order: cases in
+    dataset order, strategies alternating by the case's dataset index (as the runner does)."""
+    return [
+        (case.id, strategy)
+        for index, case in schedule_day_cases(dataset, schedule, day)
+        for strategy in (strategies if index % 2 == 0 else list(reversed(strategies)))
+    ]
+
+
+def load_execution_recovery(
+    dataset: Dataset,
+    prereg: dict[str, Any],
+    schedule: dict[str, Any] | None,
+    directory: Path = EVAL_ROOT,
+) -> dict[str, Any] | None:
+    """A registered, disclosed recovery of an interrupted scheduled day (v5.2.4+). The plan names
+    the combinations whose genuine results were already persisted by the interrupted runs (carried
+    over, never re-run) and the combinations still to execute. Together they must be the day's full
+    registered matrix, each exactly once, and execution must follow the registered order. The
+    pre-registration pins the plan's SHA-256."""
+    ref = prereg.get("execution_recovery")
+    if not ref:
+        return None
+    if schedule is None:
+        raise ValueError("an execution recovery needs a registered execution schedule")
+    raw = (directory / ref["file"]).read_bytes()
+    sha = hashlib.sha256(raw).hexdigest()
+    if sha != ref["sha256"]:
+        raise ValueError(f"{ref['file']} changed since it was pre-registered")
+    try:
+        plan = yaml.load(raw, Loader=_UniqueKeyLoader)  # noqa: S506 (a SafeLoader subclass)
+    except (yaml.YAMLError, ValueError) as error:
+        raise ValueError(f"{ref['file']}: unreadable ({error})") from None
+    if plan.get("dataset") != dataset.name or plan.get("dataset_sha256") != dataset.sha256:
+        raise ValueError(f"{ref['file']} is registered for a different dataset or dataset version")
+    if plan.get("schedule_sha256") != schedule["sha256"]:
+        raise ValueError(f"{ref['file']} was written for a different execution schedule")
+    day = int(plan["day"])
+    strategies = list(plan["strategies"])
+    order = scheduled_combinations(dataset, schedule, day, strategies)
+    carried = [(str(c["case_id"]), str(c["strategy"])) for c in plan["carried_over"]]
+    execute = [(str(c["case_id"]), str(c["strategy"])) for c in plan["execute"]]
+    combined = carried + execute
+    if len(set(combined)) != len(combined) or set(combined) != set(order):
+        raise ValueError(
+            f"{ref['file']}: carried-over and to-execute combinations must be the day's "
+            f"{len(order)} registered combinations, each exactly once"
+        )
+    if execute != [c for c in order if c in set(execute)]:
+        raise ValueError(f"{ref['file']}: combinations must execute in the registered order")
+    return {
+        "file": ref["file"],
+        "sha256": sha,
+        "day": day,
+        "strategies": strategies,
+        "order": order,
+        "execute": execute,
+        "carried_over": list(plan["carried_over"]),
+        "original_runs": dict(plan["original_runs"]),
+    }
+
+
 APPROVED = "approved"
 APPROVED_AFTER_AMENDMENT = "approved_after_scoring_amendment"
 TRANSLATOR_ASSISTED = "translator_assisted_owner_review"

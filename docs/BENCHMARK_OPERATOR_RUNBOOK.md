@@ -5,7 +5,30 @@ Everything here uses the committed helpers `scripts\benchmark-day.ps1` and `scri
 Don't edit the registered files (`evaluation\*v5.2.3*`, the dataset, the scoring amendment or the attestation),
 `.env`, or the production deployment.
 
-## 0. Current status (2026-11-05): the registered v5.2.3 comparison is INCOMPLETE
+## Final Day 2 state (2026-11-05): completed by a disclosed post-hoc recovery (v5.2.4)
+
+- **Day 2 is complete as a disclosed recovery, not as a clean prospective run.** Revision
+  `routewise_bench_v5.2.4`, registered 2026-11-05T08:56:09Z after 11 of Day 2's outcomes had been
+  observed, carried over those 11 genuine results unchanged. It ran the 25 missing combinations once
+  (09:09–09:18 UTC), with no retries or fallbacks needed.
+- **Recovery runs** (all `completed`): baseline_premium `02641677-f97b-4cd4-899f-1d20a8d44d90`,
+  routewise `6d930fbe-ccb8-4f23-9159-0baae51a7a82`, routewise_tier_first
+  `fcf7088b-b062-40bd-abe9-bb88a297013e`. The three original v5.2.3 runs stay `failed`.
+- **Report:** `evaluation\reports\v5.2.4-day2-recovery\` (built from Neon with
+  `uv run python -m app.cli eval-recovery-report --dataset routewise_bench_v5 --revision routewise_bench_v5.2.4 --label <name>`).
+  - 36/36 combinations, 0 missing, status `complete`, `publishable: false` (post-hoc).
+  - Pass rates 12/12 for every strategy.
+  - Day 2 used 10,632 Groq tokens in total.
+  - Details and hashes are in `evaluation\datasets\routewise_bench_v5.2.4.CHANGELOG.md`.
+- **The recovery runs once.** A second `eval-run --revision routewise_bench_v5.2.4 --schedule-day 2` is
+  refused, because a run already carries the recovery plan. Never re-run Day 2 under any revision.
+- **Runs left `running`** (for example after a database outage during finalisation) are closed with
+  `uv run python -m app.cli eval-finalize-runs --run-id <id> [--run-id <id> ...]`, which changes only
+  runs that are still `running`.
+- **Days 3 and 4 are not run.** The v5.2.3 four-day comparison remains incomplete. Running them, or
+  pooling all four days, needs a new registration.
+
+## 0. Status before the recovery (2026-11-05 morning): the registered v5.2.3 comparison is INCOMPLETE
 
 > **Never restart Day 2.** Don't run `.\scripts\benchmark-day.ps1 -Day 2` (or the old Day 2 command) again. Day 2
 > started once, was interrupted, and under the registered protocol it can't be resumed or re-run. The helper now

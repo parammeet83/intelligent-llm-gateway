@@ -313,6 +313,17 @@ def _scheduled(args: argparse.Namespace, prereg: dict[str, Any], dataset: Any) -
     return schedule, dataset.model_copy(update={"cases": cases})
 
 
+def _recovery(args: argparse.Namespace, prereg: dict[str, Any], dataset: Any, schedule: Any) -> Any:
+    """The registered execution recovery (v5.2.4+) or None; refuses another --schedule-day."""
+    from app.evaluation.dataset import load_execution_recovery
+
+    recovery = load_execution_recovery(dataset, prereg, schedule)
+    day = getattr(args, "schedule_day", None)
+    if recovery is not None and day is not None and day != recovery["day"]:
+        raise ValueError(f"the registered recovery is for day {recovery['day']}, not day {day}")
+    return recovery
+
+
 def _quota_preflight(
     args: argparse.Namespace,
     prereg: dict[str, Any],
@@ -320,6 +331,7 @@ def _quota_preflight(
     settings: Any,
     providers: dict[str, Any],
     strategies: list[str],
+    only: set[tuple[str, str]] | None = None,
 ) -> Any:
     """Print and return the worst-case quota preflight (None if the revision has no quota)."""
     from pathlib import Path
@@ -334,7 +346,7 @@ def _quota_preflight(
     provider, quota = found
     ledger = QuotaLedger(Path(args.ledger) if args.ledger else DEFAULT_LEDGER, provider)
     pre = preflight.evaluate(
-        preflight.plan(dataset, strategies, settings, providers, quota),
+        preflight.plan(dataset, strategies, settings, providers, quota, only=only),
         quota,
         _daily_budget(args),
         ledger,
@@ -434,7 +446,20 @@ async def cmd_eval_validate(args: argparse.Namespace) -> int:
             f"execution schedule {schedule['file']} sha256 {schedule['sha256'][:12]}: "
             f"valid; {sizes}"
         )
+        try:
+            recovery = _recovery(args, prereg, dataset, schedule)
+        except ValueError as error:
+            print(f"execution recovery: INVALID — {error}")
+            return 1
+        if recovery is not None:
+            print(
+                f"execution recovery {recovery['file']} sha256 {recovery['sha256'][:12]}: valid; "
+                f"day {recovery['day']}: {len(recovery['carried_over'])} carried over, "
+                f"{len(recovery['execute'])} to execute"
+            )
         days = [args.schedule_day] if args.schedule_day is not None else list(schedule["days"])
+        if recovery is not None:
+            days = [recovery["day"]]
         for day in days:
             day_cases = [case for _, case in schedule_day_cases(dataset, schedule, day)]
             print(f"scheduled day {day} ({len(day_cases)} cases):")
@@ -445,6 +470,7 @@ async def cmd_eval_validate(args: argparse.Namespace) -> int:
                 settings,
                 providers,
                 list(STRATEGIES),
+                only=set(recovery["execute"]) if recovery is not None else None,
             )
             if pre is not None and not pre.ok:
                 status = 1
@@ -488,6 +514,7 @@ async def cmd_eval_run(args: argparse.Namespace) -> int:
             )
         if schedule is not None and args.limit:
             raise ValueError("--limit can't be combined with a registered execution schedule")
+        recovery = _recovery(args, prereg, dataset, schedule)
         check_manifest(
             prereg,
             settings,
@@ -502,7 +529,8 @@ async def cmd_eval_run(args: argparse.Namespace) -> int:
         )
     except ValueError as error:
         raise CliError(str(error)) from None
-    pre = _quota_preflight(args, prereg, planned, settings, providers, args.strategies)
+    only = set(recovery["execute"]) if recovery is not None else None
+    pre = _quota_preflight(args, prereg, planned, settings, providers, args.strategies, only)
     if pre is not None and not pre.ok:
         raise CliError("quota preflight failed (fail closed): " + "; ".join(pre.problems))
     await refresh_catalogs(providers, HealthRegistry())
@@ -539,6 +567,56 @@ async def cmd_eval_run(args: argparse.Namespace) -> int:
     if summary["publishable_reasons"]:
         print("not publishable: " + "; ".join(summary["publishable_reasons"]))
     return 1 if result.incomplete else 0
+
+
+async def cmd_eval_finalize_runs(args: argparse.Namespace) -> int:
+    """Close evaluation runs left `running` (e.g. by a database outage during finalisation) as
+    `failed`. Only runs still `running` change; finished runs keep their status. No provider
+    call."""
+    from app.evaluation.runner import finalize_runs
+
+    db = Database(get_settings().database_url.get_secret_value())
+    try:
+        changed = await finalize_runs(db, list(args.run_id), "failed")
+    finally:
+        await db.dispose()
+    print(
+        f"marked {changed} of {len(args.run_id)} run(s) failed (only runs still `running` change)"
+    )
+    return 0
+
+
+async def cmd_eval_recovery_report(args: argparse.Namespace) -> int:
+    """Build the registered recovery's report from Neon (v5.2.4+; no provider call). Exit 0 only
+    if every registered combination is accounted for and every recovery run completed."""
+    from app.evaluation.dataset import REPORTS_DIR, load_dataset
+    from app.evaluation.report import build_recovery_report
+
+    dataset = load_dataset(args.dataset)
+    prereg, sha, _ = _load_prereg(args, dataset)
+    db = Database(get_settings().database_url.get_secret_value())
+    try:
+        out, summary = await build_recovery_report(
+            db,
+            dataset=dataset,
+            prereg=prereg,
+            prereg_sha=sha,
+            revision=args.revision,
+            label=args.label,
+            directory=REPORTS_DIR,
+        )
+    except (ValueError, OSError) as error:
+        raise CliError(str(error)) from None
+    finally:
+        await db.dispose()
+    print(f"recovery report: {out}")
+    print(
+        f"  status {summary['status']}: {summary['observed_results']}/"
+        f"{summary['expected_results']} combinations, missing {summary['missing_results']}"
+    )
+    for problem in summary["validation_problems"]:
+        print(f"  validation problem: {problem}")
+    return 0 if summary["status"] == "complete" else 1
 
 
 async def cmd_eval_combine(args: argparse.Namespace) -> int:
@@ -692,6 +770,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--reports", nargs="+", required=True, help="one report directory per scheduled day"
     )
     p.set_defaults(func=cmd_eval_combine)
+
+    p = sub.add_parser("eval-finalize-runs", help="close evaluation runs left `running` as failed")
+    p.add_argument("--run-id", action="append", required=True, help="repeat for each run")
+    p.set_defaults(func=cmd_eval_finalize_runs)
+
+    p = sub.add_parser(
+        "eval-recovery-report", help="build a registered recovery's report from the database"
+    )
+    p.add_argument("--dataset", required=True)
+    p.add_argument("--revision", required=True)
+    p.add_argument("--label", required=True, help="report directory name")
+    p.set_defaults(func=cmd_eval_recovery_report)
     return parser
 
 
