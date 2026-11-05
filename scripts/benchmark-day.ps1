@@ -7,8 +7,10 @@
   - Reads that day's registered requirement from the hash-pinned schedule (via the app's own loader).
   - Takes the fresh remaining daily tokens of BOTH Groq models as read in the console today, uses
     the smaller one (the registered rule), and refuses if it is below the day's requirement.
-  - Refuses a day that already has a report, a day whose earlier day hasn't run, a second day on
-    the same UTC date, a schedule span over 14 days, or a start later than 22:00 UTC.
+  - Refuses (fail closed, via scripts\benchmark_guard.py) a day that already started: a local report,
+    provider attempts in the quota ledger today (UTC), or Neon evaluation runs for that day, of any
+    status. Also refuses a day whose earlier day hasn't run or is incomplete, a second day on the
+    same UTC date, a 14-day span overrun, a start after 22:00 UTC, or Neon being unreachable.
   - Always runs the read-only preflight first. Without -Run it stops after the preflight.
   - Sets MOCK_PROVIDER_ENABLED=false for this process only; .env is never modified (checked).
   - Results and snapshots go to evaluation\reports\v5.2.3-day<N>\ (and to the database).
@@ -43,49 +45,20 @@ if ($verified -gt $now.AddMinutes(1)) { throw "-VerifiedAt is in the future" }
 if ($verified.UtcDateTime.Date -ne $now.UtcDateTime.Date) { throw "the quota must be read today (UTC date $($now.UtcDateTime.ToString('yyyy-MM-dd')))" }
 if ($now.UtcDateTime.TimeOfDay -gt [TimeSpan]::FromHours(22)) { throw "too late: a day must start at least 2 hours before 00:00 UTC" }
 
-# --- registered requirement and earlier days (read through the app's own verified loaders) -----------
-$probe = @'
-import json, sys
-from pathlib import Path
-from app.evaluation.dataset import load_dataset, load_execution_revision, load_preregistration, load_execution_schedule
-import yaml
-day, reports = int(sys.argv[1]), Path(sys.argv[2])
-v5 = load_dataset("routewise_bench_v5")
-path, pinned = load_execution_revision("routewise_bench_v5.2.3", v5)
-prereg, sha = load_preregistration(path, dataset=v5, pinned_sha256=pinned)
-schedule = load_execution_schedule(v5, prereg)
-raw = yaml.safe_load((path.parent / schedule["file"]).read_text(encoding="utf-8"))
-done = {}
-for summary in reports.glob("*/summary.json"):
-    s = json.loads(summary.read_text(encoding="utf-8"))
-    info = s.get("execution_schedule") or {}
-    if s.get("execution_revision") == "routewise_bench_v5.2.3" and info.get("day") is not None:
-        done.setdefault(int(info["day"]), []).append({"dir": summary.parent.name, "utc_date": info.get("utc_date"),
-                                                      "incomplete": bool(s.get("incomplete")), "simulated": bool(s.get("simulated"))})
-print(json.dumps({"required": raw["day_worst_case"][day]["required_remaining_daily_tokens"],
-                  "worst_case": raw["day_worst_case"][day]["worst_case_tokens"],
-                  "cases": schedule["days"][day], "max_span_days": schedule["max_span_days"],
-                  "schedule_sha256": schedule["sha256"], "done": done}))
-'@
+# --- fail-closed guard (scripts/benchmark_guard.py), BEFORE the preflight and before -Run ----------
+# A day may never start twice, even after a crash that left no report. Refuses if this day has a local
+# report, if the quota ledger already has provider attempts today (UTC), if Neon already has runs for
+# this day (any status), if an earlier day is missing or incomplete, if another day ran today, or if
+# the 14-day span is exceeded. If any of these can't be checked (e.g. Neon unreachable), it refuses.
+$ledgerPath = Join-Path $reports "quota_ledger.json"
 Push-Location $backend
 try {
-    $info = ($probe | uv run --offline --frozen python - $Day $reports) | ConvertFrom-Json
-    if ($LASTEXITCODE) { throw "could not read the registered schedule" }
+    $guardOut = uv run --offline --frozen python (Join-Path $root "scripts\benchmark_guard.py") --day $Day --reports $reports --ledger $ledgerPath
+    if ($LASTEXITCODE) { throw "the safety guard could not run (exit $LASTEXITCODE): day $Day not started (fail closed)" }
 } finally { Pop-Location }
-
-$done = @{}; foreach ($p in $info.done.PSObject.Properties) { $done[[int]$p.Name] = $p.Value }
-if ($done.ContainsKey($Day)) { throw "day $Day already has a report ($($done[$Day].dir)): each day runs exactly once" }
-if (Test-Path (Join-Path $reports $label)) { throw "report directory $label already exists: each day runs exactly once" }
-for ($d = 1; $d -lt $Day; $d++) { if (-not $done.ContainsKey($d)) { throw "day $d has not run yet: days run in order" } }
-$today = $now.UtcDateTime.ToString("yyyy-MM-dd")
-foreach ($d in $done.Keys) {
-    if ($done[$d].utc_date -eq $today) { throw "day $d already ran on $today (UTC): each day needs its own UTC date" }
-}
-if ($done.ContainsKey(1)) {
-    $span = ([datetime]$today - [datetime]$done[1].utc_date).Days
-    if ($span -gt $info.max_span_days) { throw "day 1 ran $span days ago; the registered span is $($info.max_span_days) days" }
-}
-
+try { $info = ($guardOut | Select-Object -Last 1) | ConvertFrom-Json } catch { throw "the safety guard returned no result: day $Day not started (fail closed)" }
+if ($null -eq $info.problems) { throw "the safety guard returned no verdict: day $Day not started (fail closed)" }
+if (@($info.problems).Count -gt 0) { throw ("refused, day $Day not started: " + (@($info.problems) -join " | ")) }
 $remaining = [Math]::Min($Remaining20B, $Remaining120B)
 Write-Host "Day $Day of ${Revision}: $($info.cases.Count) cases ($($info.cases -join ' '))"
 Write-Host "Worst case $($info.worst_case) tokens; requires remaining >= $($info.required) (smaller model)."
