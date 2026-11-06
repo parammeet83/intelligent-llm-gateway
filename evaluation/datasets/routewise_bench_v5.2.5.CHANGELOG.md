@@ -1,6 +1,6 @@
 # routewise_bench_v5.2.5 — Post-incident, exploratory Day 3 registration
 
-**Registered 2026-11-06T03:08:50Z; not executed.** This is a **post-incident, exploratory
+**Registered 2026-11-06T03:08:50Z; executed 2026-11-06 05:11–05:21 UTC (Day 3 complete; see Outcome).** This is a **post-incident, exploratory
 registration**, not a prospective, confirmatory one. It was written after Day 1 (complete) and Day 2
 (interrupted on 2026-11-05, then completed by the disclosed v5.2.4 recovery) had been run and their
 outcomes observed. The pre-registration declares `publishable: false`: its results are **never
@@ -56,3 +56,24 @@ The pinned schedule is unchanged: `evaluation/execution_schedule_routewise_bench
 The v5.2.5 manifest pins these changed application files: `app/cli.py`, `app/db/models.py`,
 `app/evaluation/report.py` and `app/evaluation/runner.py`. v5.2.4 is now refused at run time; its 4
 manifest-dependent tests are strict xfail.
+
+## Outcome (verified against Neon)
+
+Executed 2026-11-06 05:11:42–05:21:56 UTC from commit `24568142` (CI green; deployed with migration 0003).
+Full record: `docs/BENCHMARK_DAY3_CLOSURE_v5.2.5.md`.
+
+- **Status:** Day 3 complete. Post-incident and exploratory; `publishable: false`. Day 4 was not run.
+- **Execution claim:** `d150469c-eb6e-436f-b599-ea386254b734`, taken 05:11:34 UTC.
+- **Runs** (all `completed`):
+  - baseline_premium `4eb0491d-f79d-4b6e-a2ad-1756e5fd27a8`
+  - routewise `c6c10121-288f-49ea-9d80-2bb4cf4216bf`
+  - routewise_tier_first `ee968cdb-73d3-4e50-a0c2-0fcc98fe650e`
+- **Matrix:** 33/33 combinations, 0 missing, 0 duplicates; each linked to a `succeeded` request log.
+- **Pass rates:** 11/11 for every strategy, so the exploratory paired difference against the baseline is 0.00.
+- **Groq usage:** 33 attempts and 8,968 tokens (gpt-oss-120b 6,578; gpt-oss-20b 2,390); 0 retries or fallbacks.
+  The ledger agrees exactly.
+- **Charge:** $0 actual (free tier). Estimated list cost (shadow) $0.00314328.
+- **Report:** `evaluation/reports/v5.2.5-day3/` (git-ignored):
+  - `summary.json` `267e681839c6b776fa18a6b44bbb45a4f61d36957239d61ea48115d3c2e0dfb0`
+  - `results.jsonl` `0fab189ca77293eb43ea37c023de41a3231300c1676e98fe1b410ccb4f43b337`
+  - `summary.md` `92fa04a8da66a2c299eabb4ec22a8b0e84fc6531b302554d37b06005c5441d8a`
