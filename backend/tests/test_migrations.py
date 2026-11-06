@@ -51,3 +51,12 @@ def test_single_head() -> None:
     heads = ScriptDirectory.from_config(alembic_config()).get_heads()
     assert heads == [expected_head()]
     assert command  # imported for parity with CLI usage
+
+
+def test_no_applied_migration_is_ever_dropped() -> None:
+    """Production is at 0003. An image without a migration that the database already has can't
+    start (`alembic upgrade head` fails: "Can't locate revision"), so these must never disappear."""
+    from alembic.script import ScriptDirectory
+
+    revisions = {r.revision for r in ScriptDirectory.from_config(alembic_config()).walk_revisions()}
+    assert {"0001", "0002", "0003"} <= revisions

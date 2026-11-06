@@ -14,21 +14,27 @@ import uuid
 from collections import Counter
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 import asyncpg
 from sqlalchemy import func, select, update
-from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
+from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError, ProgrammingError
 from sqlalchemy.exc import InterfaceError as SAInterfaceError
 
 from app.api.v1.schemas import GenerateRequest
 from app.auth.keys import AuthenticatedTenant
 from app.core.config import Settings
 from app.core.errors import GatewayError
-from app.db.models import EvaluationCase, EvaluationResult, EvaluationRun, Tenant
+from app.db.models import (
+    BenchmarkExecutionClaim,
+    EvaluationCase,
+    EvaluationResult,
+    EvaluationRun,
+    Tenant,
+)
 from app.db.session import Database
 from app.evaluation import preflight
 from app.evaluation.dataset import (
@@ -80,8 +86,8 @@ class CombinationStateUnknown(RuntimeError):
 
 def is_transient_db_error(error: BaseException) -> bool:
     """Connection-level database failures (timeouts, dropped or refused connections). A constraint
-    violation is not transient and is never retried."""
-    if isinstance(error, IntegrityError):
+    violation or a schema problem (e.g. a missing table) is not transient and is never retried."""
+    if isinstance(error, (IntegrityError, ProgrammingError)):
         return False
     return isinstance(
         error,
@@ -122,6 +128,86 @@ async def with_db_retry[T](
     raise DatabaseUnavailable(
         f"{what}: the database was unavailable after {len(DB_RETRY_DELAYS_S) + 1} attempts"
     ) from last
+
+
+def check_execution_window(prereg: dict[str, Any], day: int, now: datetime) -> None:
+    """A registered execution window (v5.2.5+): only its days may run, on a UTC date inside the
+    window and no later than its latest start time. Raises ValueError otherwise."""
+    window = prereg.get("execution_window")
+    if not window:
+        return
+    days = [int(d) for d in window["days"]]
+    if day not in days:
+        raise ValueError(f"this registration authorises day(s) {days} only, not day {day}")
+    moment = now.astimezone(UTC)
+    earliest = date.fromisoformat(str(window["earliest_utc_date"]))
+    latest = date.fromisoformat(str(window["latest_utc_date"]))
+    if not earliest <= moment.date() <= latest:
+        raise ValueError(
+            f"outside the registered execution window ({earliest} to {latest} UTC): "
+            f"today is {moment.date()}"
+        )
+    if moment.time() > time.fromisoformat(str(window["latest_start_utc"])):
+        raise ValueError(
+            f"after the registered latest start time ({window['latest_start_utc']} UTC)"
+        )
+
+
+async def scheduled_day_started(
+    db: Database, revision: str, day: int, sleep: Callable[[float], Awaitable[None]]
+) -> list[str]:
+    """Read-only: every execution claim and every evaluation run (any status) already recorded for
+    this revision's scheduled day. Unreachable database or missing claims table: raises (callers
+    fail closed)."""
+
+    async def once() -> list[str]:
+        async with db.sessionmaker() as session:
+            claims = (
+                await session.scalars(
+                    select(BenchmarkExecutionClaim).where(
+                        BenchmarkExecutionClaim.revision == revision,
+                        BenchmarkExecutionClaim.schedule_day == day,
+                    )
+                )
+            ).all()
+            runs = (await session.scalars(select(EvaluationRun))).all()
+        found = [f"claim {c.id} ({c.claimed_at:%Y-%m-%d %H:%M} UTC)" for c in claims]
+        for r in runs:
+            snap = r.config_snapshot or {}
+            if (
+                snap.get("execution_revision") == revision
+                and (snap.get("execution_schedule") or {}).get("day") == day
+            ):
+                found.append(f"run {r.id} ({r.status})")
+        return found
+
+    return await with_db_retry(once, "check whether the scheduled day already started", sleep)
+
+
+async def claim_scheduled_day(
+    db: Database,
+    revision: str,
+    day: int,
+    label: str,
+    sleep: Callable[[float], Awaitable[None]],
+) -> None:
+    """Atomically claim a revision's scheduled day. The unique (revision, schedule_day) constraint
+    lets exactly one of several concurrent starts insert its claim; every other start (and any
+    later one) is refused. A claim is never removed, so a failed day can't be restarted. If a
+    commit's acknowledgement is lost, the retry hits the constraint and refuses (safe: the day is
+    then claimed but nothing runs)."""
+
+    async def once() -> None:
+        async with db.sessionmaker() as session:
+            session.add(BenchmarkExecutionClaim(revision=revision, schedule_day=day, label=label))
+            await session.commit()
+
+    try:
+        await with_db_retry(once, "claim the scheduled day", sleep)
+    except IntegrityError:
+        raise ValueError(
+            f"{revision} day {day} is already claimed: a scheduled day never starts twice"
+        ) from None
 
 
 async def finalize_runs(
@@ -349,6 +435,8 @@ async def run_benchmark(
         if limit_cases:
             raise ValueError("limit_cases can't be combined with a registered execution schedule")
         indexed = schedule_day_cases(dataset, schedule, schedule_day)
+        # v5.2.5+: a registered execution window limits which days may run, and when.
+        check_execution_window(prereg, schedule_day, datetime.now(UTC))
     # v5.2.4+: a registered, disclosed recovery of an interrupted day. Only its listed combinations
     # run; genuine results the interrupted runs already persisted are carried over, never re-run.
     recovery = load_execution_recovery(dataset, prereg, schedule)
@@ -420,6 +508,17 @@ async def run_benchmark(
     simulated = all(p.simulated for p in providers.values())
     if recovery is not None:
         await _refuse_started_recovery(db, recovery["sha256"], sleep)
+    if schedule is not None and schedule_day is not None and revision:
+        # v5.2.5+: a scheduled day starts at most once per revision. Read-only check first (also
+        # covers runs that predate claims), then the atomic claim that wins against concurrent
+        # starts. Any database doubt raises: fail closed, before any run or provider call.
+        already = await scheduled_day_started(db, revision, schedule_day, sleep)
+        if already:
+            raise ValueError(
+                f"{revision} day {schedule_day} already started ({'; '.join(already)}): "
+                "a scheduled day never starts twice"
+            )
+        await claim_scheduled_day(db, revision, schedule_day, label, sleep)
     tenant = await _eval_tenant(db)
     auth = AuthenticatedTenant(tenant=tenant, api_key_id=None, key_prefix="internal")
     base_policy = load_policy(settings.routing_policy_path)

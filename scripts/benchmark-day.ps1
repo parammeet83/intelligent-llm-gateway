@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-  Run ONE registered day of the routewise_bench_v5.2.3 four-day schedule, safely.
+  Run ONE registered day of a registered benchmark schedule safely (default revision
+  routewise_bench_v5.2.3; pass -Revision for another, e.g. routewise_bench_v5.2.5).
 
 .DESCRIPTION
   - Runs only the day you name. It never starts another day.
@@ -25,15 +26,16 @@ param(
     [Parameter(Mandatory)][ValidateRange(0, 100000000)][int]$Remaining120B,
     [Parameter(Mandatory)][string]$VerifiedAt,
     [string]$Source = "Groq console limits page",
+    [string]$Revision = "routewise_bench_v5.2.3",
     [switch]$Run
 )
 
 $ErrorActionPreference = "Stop"
-$Revision = "routewise_bench_v5.2.3"
 $root = Split-Path -Parent $PSScriptRoot
 $backend = Join-Path $root "backend"
 $reports = Join-Path $root "evaluation\reports"
-$label = "v5.2.3-day$Day"
+if ($Revision -notmatch '^routewise_bench_v[0-9.]+$') { throw "-Revision must look like routewise_bench_v5.2.5" }
+$label = ($Revision -replace '^routewise_bench_', '') + "-day$Day"
 $envFile = Join-Path $root ".env"
 
 # --- verified time: an ISO 8601 instant with an offset, today (UTC), not in the future ---------------
@@ -53,7 +55,7 @@ if ($now.UtcDateTime.TimeOfDay -gt [TimeSpan]::FromHours(22)) { throw "too late:
 $ledgerPath = Join-Path $reports "quota_ledger.json"
 Push-Location $backend
 try {
-    $guardOut = uv run --offline --frozen python (Join-Path $root "scripts\benchmark_guard.py") --day $Day --reports $reports --ledger $ledgerPath
+    $guardOut = uv run --offline --frozen python (Join-Path $root "scripts\benchmark_guard.py") --day $Day --reports $reports --ledger $ledgerPath --revision $Revision
     if ($LASTEXITCODE) { throw "the safety guard could not run (exit $LASTEXITCODE): day $Day not started (fail closed)" }
 } finally { Pop-Location }
 try { $info = ($guardOut | Select-Object -Last 1) | ConvertFrom-Json } catch { throw "the safety guard returned no result: day $Day not started (fail closed)" }

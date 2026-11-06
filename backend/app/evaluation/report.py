@@ -250,11 +250,14 @@ def build_summary(result: BenchmarkResult) -> dict[str, Any]:
     for comparison in comparisons.values():
         comparison["claims_allowed"] = not blocked
         comparison["claims_blocked_reasons"] = blocked
+    # v5.2.5+: a registration may declare its results non-publishable (e.g. post-incident runs).
+    declared_off = result.preregistration.get("publishable") is False
     publishable = (
         not result.simulated
         and result.dataset_fully_reviewed
         and not result.incomplete
         and not any(r.startswith("run invalid") for r in blocked)
+        and not declared_off
     )
     return {
         "label": result.label,
@@ -269,6 +272,13 @@ def build_summary(result: BenchmarkResult) -> dict[str, Any]:
                 ),
                 ("dataset not fully human-reviewed", not result.dataset_fully_reviewed),
                 ("run incomplete", result.incomplete),
+                (
+                    str(
+                        result.preregistration.get("publishable_reason")
+                        or "the registration declares its results non-publishable"
+                    ),
+                    declared_off,
+                ),
             )
             if bad
         ]

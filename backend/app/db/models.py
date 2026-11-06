@@ -336,6 +336,22 @@ class EvaluationRun(Base):
     finished_at: Mapped[datetime | None]
 
 
+class BenchmarkExecutionClaim(Base):
+    """One row per (revision, scheduled day) ever started (v5.2.5+). The unique constraint makes a
+    second start of the same scheduled day impossible, even from two concurrent processes: only
+    one insert can succeed. Claims are never deleted, so a failed or interrupted day stays
+    claimed."""
+
+    __tablename__ = "benchmark_execution_claims"
+    __table_args__ = (UniqueConstraint("revision", "schedule_day"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    revision: Mapped[str] = mapped_column(String(64))
+    schedule_day: Mapped[int]
+    label: Mapped[str] = mapped_column(String(100))
+    claimed_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
 class EvaluationResult(_CostColumns, Base):
     __tablename__ = "evaluation_results"
     __table_args__ = (

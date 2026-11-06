@@ -457,7 +457,27 @@ async def cmd_eval_validate(args: argparse.Namespace) -> int:
                 f"day {recovery['day']}: {len(recovery['carried_over'])} carried over, "
                 f"{len(recovery['execute'])} to execute"
             )
+        window = prereg.get("execution_window")
+        if window:
+            print(
+                f"execution window: day(s) {window['days']} on one UTC date from "
+                f"{window['earliest_utc_date']} to {window['latest_utc_date']}, start by "
+                f"{window['latest_start_utc']} UTC"
+            )
+            if args.schedule_day is not None:
+                from datetime import UTC, datetime
+
+                from app.evaluation.runner import check_execution_window
+
+                try:
+                    check_execution_window(prereg, args.schedule_day, datetime.now(UTC))
+                    print(f"  day {args.schedule_day} is inside the window now")
+                except ValueError as error:
+                    print(f"  WINDOW: {error}")
+                    status = 1
         days = [args.schedule_day] if args.schedule_day is not None else list(schedule["days"])
+        if window and args.schedule_day is None:
+            days = [int(d) for d in window["days"]]
         if recovery is not None:
             days = [recovery["day"]]
         for day in days:
@@ -515,6 +535,12 @@ async def cmd_eval_run(args: argparse.Namespace) -> int:
         if schedule is not None and args.limit:
             raise ValueError("--limit can't be combined with a registered execution schedule")
         recovery = _recovery(args, prereg, dataset, schedule)
+        if schedule is not None and args.schedule_day is not None:
+            from datetime import UTC, datetime
+
+            from app.evaluation.runner import check_execution_window
+
+            check_execution_window(prereg, args.schedule_day, datetime.now(UTC))
         check_manifest(
             prereg,
             settings,
@@ -533,6 +559,27 @@ async def cmd_eval_run(args: argparse.Namespace) -> int:
     pre = _quota_preflight(args, prereg, planned, settings, providers, args.strategies, only)
     if pre is not None and not pre.ok:
         raise CliError("quota preflight failed (fail closed): " + "; ".join(pre.problems))
+    if args.schedule_day is not None and args.revision:
+        # Before any network call: a scheduled day never starts twice (fail closed on any doubt).
+        from app.evaluation.runner import scheduled_day_started
+
+        check_db = Database(settings.database_url.get_secret_value())
+        try:
+            already = await scheduled_day_started(
+                check_db, args.revision, args.schedule_day, asyncio.sleep
+            )
+        except Exception as error:
+            raise CliError(
+                f"could not confirm that day {args.schedule_day} has not started "
+                f"({type(error).__name__}): refusing (fail closed)"
+            ) from None
+        finally:
+            await check_db.dispose()
+        if already:
+            raise CliError(
+                f"{args.revision} day {args.schedule_day} already started "
+                f"({'; '.join(already)}): a scheduled day never starts twice"
+            )
     await refresh_catalogs(providers, HealthRegistry())
     db = Database(settings.database_url.get_secret_value())
     try:

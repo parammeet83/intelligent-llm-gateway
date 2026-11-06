@@ -27,18 +27,22 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-REVISION = "routewise_bench_v5.2.3"
-LABEL = "v5.2.3-day{day}"
+REVISION = "routewise_bench_v5.2.3"  # the default; any registered revision via --revision
 NEON_TIMEOUT_S = 60.0
 
 
-def report_days(reports: Path) -> dict[int, list[dict[str, Any]]]:
+def day_label(revision: str, day: int) -> str:
+    """Report label of a scheduled day, e.g. v5.2.5-day3 for routewise_bench_v5.2.5."""
+    return f"{revision.removeprefix('routewise_bench_')}-day{day}"
+
+
+def report_days(reports: Path, revision: str = REVISION) -> dict[int, list[dict[str, Any]]]:
     """Every local report of this revision, by scheduled day."""
     done: dict[int, list[dict[str, Any]]] = {}
     for summary in sorted(reports.glob("*/summary.json")):
         s = json.loads(summary.read_text(encoding="utf-8"))
         info = s.get("execution_schedule") or {}
-        if s.get("execution_revision") == REVISION and info.get("day") is not None:
+        if s.get("execution_revision") == revision and info.get("day") is not None:
             done.setdefault(int(info["day"]), []).append(
                 {
                     "dir": summary.parent.name,
@@ -57,25 +61,33 @@ def evaluate(
     reports: Path,
     ledger_requests_today: Callable[[date], int],
     neon_runs: Callable[[int], list[dict[str, Any]]],
+    revision: str = REVISION,
+    days_in_scope: list[int] | None = None,
+    window_problem: str | None = None,
 ) -> dict[str, Any]:
-    """All reasons the day may not start (empty = it may). Unreadable sources count as reasons."""
-    problems: list[str] = []
+    """All reasons the day may not start (empty = it may). Unreadable sources count as reasons.
+    days_in_scope: the days this revision registers (default: 1..day); order and incompleteness
+    checks apply only among them. window_problem: a registered-window refusal, if any."""
+    problems: list[str] = [window_problem] if window_problem else []
+    scope = days_in_scope if days_in_scope is not None else list(range(1, day + 1))
+    if day not in scope:
+        problems.append(f"{revision} does not register day {day} (registered: {scope})")
     try:
-        done = report_days(reports)
+        done = report_days(reports, revision)
     except (OSError, ValueError) as error:
         done = {}
         problems.append(
             f"could not read local reports ({type(error).__name__}): refusing (fail closed)"
         )
-    label = LABEL.format(day=day)
+    label = day_label(revision, day)
     if day in done:
         problems.append(
             f"day {day} already has a report ({done[day][0]['dir']}): each day runs exactly once"
         )
     if (reports / label).exists():
         problems.append(f"report directory {label} already exists: each day runs exactly once")
-    for d in range(1, day):
-        if d not in done:
+    for d in scope:
+        if d < day and d not in done:
             problems.append(f"day {d} has not run yet: days run in order")
     for d, entries in sorted(done.items()):
         for entry in entries:
@@ -128,8 +140,10 @@ def evaluate(
     return {"problems": problems, "local_reports": done, "neon_runs": runs}
 
 
-def _neon_runs(schedule_sha256: str) -> Callable[[int], list[dict[str, Any]]]:
-    """Read-only Neon lookup of runs for a scheduled day, via the application's own settings."""
+def _neon_runs(schedule_sha256: str, revision: str) -> Callable[[int], list[dict[str, Any]]]:
+    """Read-only Neon lookup of runs and execution claims for a scheduled day, via the
+    application's own settings. A missing claims table (migration 0003 not applied) raises, so the
+    guard fails closed."""
 
     def query(day: int) -> list[dict[str, Any]]:
         from sqlalchemy import text
@@ -148,19 +162,36 @@ def _neon_runs(schedule_sha256: str) -> Callable[[int], list[dict[str, Any]]]:
                                 text(
                                     "SELECT id::text AS id, strategy, status FROM evaluation_runs "
                                     "WHERE label = :label OR ("
-                                    "config_snapshot->'execution_schedule'->>'day' = :day AND "
-                                    "config_snapshot->'execution_schedule'->>'sha256' = :sha)"
+                                    "config_snapshot->'execution_schedule'->>'day' = :day AND ("
+                                    "config_snapshot->'execution_schedule'->>'sha256' = :sha OR "
+                                    "config_snapshot->>'execution_revision' = :revision))"
                                 ),
                                 {
-                                    "label": LABEL.format(day=day),
+                                    "label": day_label(revision, day),
                                     "day": str(day),
                                     "sha": schedule_sha256,
+                                    "revision": revision,
                                 },
                             )
                         )
                         .mappings()
                         .all()
                     )
+                    claims = (
+                        (
+                            await conn.execute(
+                                text(
+                                    "SELECT id::text AS id, 'claimed' AS status "
+                                    "FROM benchmark_execution_claims "
+                                    "WHERE revision = :revision AND schedule_day = :day"
+                                ),
+                                {"revision": revision, "day": day},
+                            )
+                        )
+                        .mappings()
+                        .all()
+                    )
+                    rows = [*rows, *claims]
                     await conn.rollback()
                     return [dict(r) for r in rows]
             finally:
@@ -176,6 +207,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--day", type=int, required=True)
     parser.add_argument("--reports", type=Path, required=True)
     parser.add_argument("--ledger", type=Path, required=True)
+    parser.add_argument("--revision", default=REVISION)
     args = parser.parse_args(argv)
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
     import yaml
@@ -187,9 +219,10 @@ def main(argv: list[str] | None = None) -> int:
         load_preregistration,
     )
     from app.evaluation.pacing import QuotaLedger
+    from app.evaluation.runner import check_execution_window
 
     v5 = load_dataset("routewise_bench_v5")
-    path, pinned = load_execution_revision(REVISION, v5)
+    path, pinned = load_execution_revision(args.revision, v5)
     prereg, _ = load_preregistration(path, dataset=v5, pinned_sha256=pinned)
     schedule = load_execution_schedule(v5, prereg)
     if schedule is None or args.day not in schedule["days"]:
@@ -197,13 +230,22 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     raw = yaml.safe_load((path.parent / schedule["file"]).read_text(encoding="utf-8"))
     ledger = QuotaLedger(args.ledger, "groq")
+    window = prereg.get("execution_window")
+    window_problem = None
+    try:
+        check_execution_window(prereg, args.day, datetime.now(UTC))
+    except ValueError as error:
+        window_problem = str(error)
     result = evaluate(
         args.day,
         today=datetime.now(UTC).date(),
         max_span_days=schedule["max_span_days"],
         reports=args.reports,
         ledger_requests_today=ledger.requests_on,
-        neon_runs=_neon_runs(schedule["sha256"]),
+        neon_runs=_neon_runs(schedule["sha256"], args.revision),
+        revision=args.revision,
+        days_in_scope=[int(d) for d in window["days"]] if window else None,
+        window_problem=window_problem,
     )
     plan = raw["day_worst_case"][args.day]
     print(

@@ -79,6 +79,39 @@ Status (2026-11-04, verified): **deployed as a demo (mock provider only).**
 Use the admin API on the deployed app to create keys. Keys created locally only work if the local
 `API_KEY_PEPPER` matches production's.
 
+## Migration 0003 (v5.2.5): deploy, rollback and recovery
+
+Migration `0003_benchmark_execution_claims` only adds the `benchmark_execution_claims` table (one row per
+benchmark revision and scheduled day, enforced by a unique constraint). It reaches Neon only through a deploy:
+the image's `CMD` runs `alembic upgrade head` and starts uvicorn only if that succeeds. Render has no pre-deploy
+command, and its health check (`/api/v1/health`) never touches the database. `/api/v1/ready` compares Neon's
+Alembic version with the image's head.
+
+**Rules once Neon is at 0003:**
+
+- Never deploy a commit that lacks `0003`. That includes Render's *Rollback* to any deploy before the v5.2.5
+  release (e.g. `e294fec`). Such an image fails at start with "Can't locate revision identified by '0003'", and
+  the old instance it replaces dies at its next restart, which on the free plan happens after 15 idle minutes.
+  `tests/test_migrations.py::test_no_applied_migration_is_ever_dropped` keeps the file from being removed.
+- Never downgrade 0003. Dropping the table destroys the execution claims, which are the run-once evidence.
+
+**Rollback target:** commit `4193a94a7a3ca6443e2a8be48db72c8656c53ac7` (local branch
+`rollback/v5.2.4-plus-0003`). It is `51ef984` (the verified v5.2.4 code) plus only the 0003 migration file, so
+its head is 0003, its `alembic upgrade head` is a no-op and `/ready` passes. This was verified on a disposable
+PostgreSQL 17 with a claim present: `/ready` returned 200 and the claim was intact. Its model-vs-migration drift
+test fails by design, because `models.py` is v5.2.4's. Use it only to restore the API.
+
+**Procedure if the v5.2.5 release must be rolled back:**
+
+1. Push the rollback target to `main` as a new commit, e.g. `git revert` of the release commit's application
+   changes, keeping `backend/alembic/versions/0003_benchmark_execution_claims.py`. Render deploys commits on
+   `main`.
+2. In Render, run *Manual Deploy* of that exact commit and watch the log: `alembic upgrade head` must be a no-op,
+   then uvicorn starts.
+3. Verify `/api/v1/health` (200, mock only) and `/api/v1/ready` (200, `migrations: ok`).
+4. Then fix forward. The claims and all other data stay untouched; a Neon branch restore is a last resort and
+   discards everything written after the checkpoint.
+
 ## Demo vs live
 
 With only the mock provider, the deployment is a **demo**: the dashboard shows the *DEMO — simulated responses* banner,

@@ -1,0 +1,25 @@
+# Revision routewise_bench_v5.2.5: the root of its hash chain. A POST-INCIDENT, EXPLORATORY registration
+# that authorises DAY 3 ONLY of the pinned schedule (never publishable as a confirmatory result; Day 4 not
+# authorised). v5.2.3 and v5.2.4 are kept unchanged and are refused at run time.
+revision: routewise_bench_v5.2.5
+kind: post-incident-exploratory-day3
+created_on: 2026-11-06
+registered_at_utc: '2026-11-06T03:08:50Z'
+supersedes: routewise_bench_v5.2.4
+amends_revision:
+  name: routewise_bench_v5.2.4
+  file: routewise_bench_v5.2.4.revision.yaml
+  sha256: eed5b11c0650c916860805ac9c5537182eda8d73ea93738ac2bae7d0502c8ec6
+dataset: routewise_bench_v5
+dataset_sha256: 76a4d1906b3e90bff6ed504f67067bf891923332fa00256227e303c11dea27bd
+execution_schedule:
+  file: execution_schedule_routewise_bench_v5.2.3.yaml
+  sha256: c74699c11ec73ef08e0d883fedf7ffe5b5bc996c84de8ba9abbb0207b94756e6
+authorised_days: [3]
+execution_window: {earliest_utc_date: '2026-11-06', latest_utc_date: '2026-11-17', latest_start_utc: '22:00'}
+publishable: false
+preregistration:
+  file: preregistration_routewise_bench_v5.2.5.yaml
+  sha256: 9b1f17befef2ae93409f48ec58807e703e2d19253215391b54411c3d624b1818
+changelog: datasets/routewise_bench_v5.2.5.CHANGELOG.md
+status: registered-not-executed
