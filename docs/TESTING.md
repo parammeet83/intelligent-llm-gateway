@@ -16,7 +16,21 @@ npx playwright install chromium   # once
 npm run test:e2e                  # starts a real backend on a throwaway SQLite DB + the built dashboard
 ```
 
-## Results (latest local run)
+## Results (latest CI run, 2026-11-06, commit `61984cd`, GitHub Actions run 42168398327)
+
+| Suite | Result |
+|---|---|
+| Backend lint / format / mypy strict | clean |
+| Backend pytest (SQLite **and** PostgreSQL 17 service) | **1,689 passed, 10 skipped, 27 xfailed** (skips = opt-in live-database checks; xfails = strict markers on superseded benchmark revisions' manifest tests, which must fail) |
+| Migrations on PostgreSQL | `0001 → 0002 → 0003` applied in CI before the tests |
+| Frontend Vitest | **28 passed** |
+| Playwright E2E (desktop + mobile) | **9 passed** |
+| `pip-audit` / production `npm audit` | no known vulnerabilities / 0 vulnerabilities |
+| `detect-secrets` | clean against the reviewed baseline |
+
+The same 1,689 backend tests also passed locally against a disposable PostgreSQL 17 on 2026-11-06.
+
+## Earlier results (local run, 2026-11-04, before CI existed)
 
 | Suite | Result |
 |---|---|
@@ -31,8 +45,8 @@ npm run test:e2e                  # starts a real backend on a throwaway SQLite 
 | `npm audit` (all) | 12 moderate, all from one dev-only `minimatch` advisory via ESLint; the only fix is a breaking downgrade. Accepted |
 | `detect-secrets` | 14 findings, all reviewed test fixtures, recorded in `.secrets.baseline`; a planted fake key is detected |
 
-**CI has not run yet.** The workflow runs on the first push. That's also where the PostgreSQL variants run, including
-concurrent budget reservations and rate-limit counting on real PostgreSQL row locks.
+CI now runs on every push to `main` and on pull requests. That's where the PostgreSQL variants run, including
+concurrent budget reservations, rate-limit counting and concurrent benchmark execution claims on real PostgreSQL.
 
 ## Coverage map
 
@@ -55,7 +69,7 @@ concurrent budget reservations and rate-limit counting on real PostgreSQL row lo
 
 ## Not covered (honestly)
 
-- Real provider behaviour: needs keys, and is the first release acceptance step.
-- PostgreSQL-specific runs locally (no local PostgreSQL by design); covered in CI once pushed.
-- Docker image build (no Docker locally).
+- Real provider behaviour in automated tests (by design: tests never call real providers). Groq was exercised live
+  only by the benchmark; OpenRouter and Ollama never live.
+- Docker image build locally (no Docker locally); Render builds it on every deploy.
 - Load testing beyond the concurrency unit tests.

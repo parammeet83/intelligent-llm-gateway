@@ -175,7 +175,11 @@ waiting for a disposable `TEST_DATABASE_URL`, plus the opt-in live checks, which
 - [x] CI extended: PG tests, pip-audit, secret scan, E2E job
 - [!] CI has never run — pending first push
 
-## Phase 7 — Deployment (prepared; blocked)
+## Phase 7 — Deployment (done 2026-11-04; redeployed with migration 0003 on 2026-11-06)
+<!-- The [ ]/[!] items below are the original pre-deployment state, kept for history; see the notes after them. -->
+- Done since: CI green on every push; Render builds the image; deployed 2026-11-04 (mock only); redeployed
+  2026-11-06 at `2456814` with migration `0003`. Production intentionally stays mock-only, so there is no real
+  provider request in production by design.
 - [x] Hosting verified from official docs: Render free (15-min sleep, ~1-min wake, SMTP-only outbound blocks); Vercel Hobby non-commercial
 - [x] `backend/Dockerfile`, `.dockerignore`, `render.yaml` (API + static dashboard, secrets `sync: false`)
 - [x] Production mode verified locally against Neon (health, ready, docs off, auth fail-closed, no secrets in logs)
@@ -188,10 +192,11 @@ waiting for a disposable `TEST_DATABASE_URL`, plus the opt-in live checks, which
 1. ~~One real Groq request~~ — done 2026-11-04 (in-process gateway pipeline; not yet over HTTP `/generate`)
 2. ~~Owner review of all 45 v5 cases~~ — done 2026-11-04 (attestation `b7099444…`, pinned by v5.2.2; T17
    translator-assisted)
-3. Live benchmark run → publishable report → README numbers and résumé bullet
+3. Live benchmark run → publishable report → README numbers and résumé bullet. Partly done: Days 1–3 run (2026-11-04
+   to 2026-11-06); Day 4 not run, so no publishable confirmatory report exists (docs/BENCHMARK_RESULTS.md)
 4. Five observed failure modes from real runs (1 of 5)
 5. ~~First CI run green (incl. PostgreSQL concurrency)~~ — done 2026-11-04 (1,544 backend tests passed in CI)
-6. Deployment verified end to end
+6. ~~Deployment verified end to end~~ — done 2026-11-04 (26/26 production checks); re-verified 2026-11-06 after the 0003 deploy
 
 ## Finalisation (2026-11-04)
 - [x] v5.2.2 publication-gate amendment: attestation-aware gate, review overlay, schema-6 manifest pinning the metadata,

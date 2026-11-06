@@ -1,7 +1,10 @@
 # Architecture
 
-Status: Phases 1–6 implemented and tested locally; Phase 7 (deployment) prepared, awaiting push and hosting access.
-Live provider calls are not yet verified (no keys configured).
+Status (2026-11-06): implemented, deployed (Render + Vercel + Neon, **mock provider only in production**). CI runs on
+pushes to `main` and on pull requests; the latest verified green run is 42168398327 on commit `61984cd`.
+Groq has been exercised live by the benchmark CLI; OpenRouter and Ollama only with fake transports. A guided,
+interview-oriented tour with diagrams is in [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md). This file keeps the module
+map and the design-decision record.
 
 Phase 3–5 additions: `auth/keys.py` (key lifecycle and authentication), `auth/admin.py` (admin sessions, login throttle),
 `tenancy/rate_limit.py`, `accounting/budget.py` (atomic reservations), `accounting/usage.py` (aggregates),
@@ -35,7 +38,7 @@ mechanism has been removed. All tenant traffic now uses API keys.
 | `providers/mock.py` | ✅ | Deterministic, scriptable, always `simulated=True`. |
 | `providers/catalog.py` | ✅ | Validates `config/models.yaml`. Real models need provenance; enabled paid models are rejected. |
 | `providers/http.py` | ✅ | Shared OpenAI-compatible HTTP: normalisation, error classification, no redirects. |
-| `providers/{groq,openrouter,ollama}.py` | ✅ (mock-tested; no live call yet) | Provider dialects, status semantics, OpenRouter free-only + quota guards. |
+| `providers/{groq,openrouter,ollama}.py` | ✅ (Groq used live by the benchmark; OpenRouter and Ollama fake-transport tested only) | Provider dialects, status semantics, OpenRouter free-only + quota guards. |
 | `routing/` | ✅ | Features → score → required tier → filters (with reasons) → ranking → decision record. Pure. |
 | `resilience/health.py` | ✅ | Circuit breakers, cooldowns, provider lockout, latency windows, catalog availability. |
 | `services/executor.py` | ✅ | Retries with jittered backoff, Retry-After, deadline, fallback chain, attempt records. |
@@ -72,7 +75,7 @@ or provider call, which is the property the card's order protects.
 | **Async SQLAlchemy + asyncpg** | The gateway spends most of its time waiting on provider HTTP calls. Async keeps one process serving many concurrent requests. asyncpg works on Windows' default event loop, which async psycopg doesn't. | asyncpg rejects libpq URL options (`sslmode`, `channel_binding`), so `normalize_database_url` translates them. |
 | **Neon via plain `DATABASE_URL`** | Standard PostgreSQL. No vendor SDK or connector needed. | Neon scales to zero and drops idle connections, hence `pool_pre_ping` and `pool_recycle=300`. Neon's `-pooler` endpoint is PgBouncer, so statement caching is disabled for it. |
 | **SQLite for fast tests, PostgreSQL in CI** | Tests run in ~5 s locally with no database server. CI runs the *same* tests against a real Postgres 17 container. | Some behaviour (row-lock concurrency) is only meaningful on Postgres. Those tests will be marked `postgres` and run in CI or against a disposable Neon branch. |
-| **Strings + CHECK constraints, not native enums** | Adding a status value is a one-line migration. | Values are validated by the DB but not by the DB type system. |
+| **Strings + CHECK constraints, not native enums** | Adding a status value needs a migration that drops and recreates the CHECK constraint, which is simpler than altering a native enum type. | Values are validated by the DB but not by the DB type system. |
 | **Rules, not an LLM, for routing** *(Phase 2)* | Deterministic, explainable, free, and adds no latency. Satisfies S1-04. | Misses semantic difficulty; documented as a known failure mode. |
 | **Non-streaming v1** | Neither screenshot requires streaming; simpler accounting and retries. | Higher time-to-first-token for long outputs. |
 | **In-memory provider health** | Zero dependencies; correct for one instance on a free host. | Several instances learn health separately; a restart forgets breakers, latency history, and the OpenRouter quota counter. |

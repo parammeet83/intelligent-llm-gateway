@@ -1,6 +1,7 @@
 # Deployment
 
-Status (2026-11-04, verified): **deployed as a demo (mock provider only).**
+Status (2026-11-06, verified): **deployed as a demo (mock provider only).** The live API is commit `2456814` (Render
+deploy `dep-dbmlal61egvs73cuvf3g`, migration `0003`). The first deployment, on 2026-11-04, is described below.
 
 - API (Render free, Singapore, Docker): https://routewise-api-ggjk.onrender.com (service `routewise-api`)
 - Dashboard (Vercel Hobby): https://routewise-dashboard.vercel.app (project `routewise-dashboard`)
@@ -45,7 +46,8 @@ Status (2026-11-04, verified): **deployed as a demo (mock provider only).**
   (database ok, migrations at head), `/docs` 404, `/generate` without or with a bogus key 401, admin without a session 401,
   wrong admin token 401, admin with a session 200. No token or credentials in logs.
 - Production refuses to start with a weak or default `API_KEY_PEPPER`, a short `ADMIN_TOKEN`, or SQLite (unit-tested).
-- **Not verified:** the Docker image build. Docker isn't installed on the development machine; the first Render build
+- **Since verified (2026-11-04 onwards):** Render has built the image successfully for every deploy since `e294fec`.
+  At the time: **not verified:** the Docker image build. Docker isn't installed on the development machine; the first Render build
   is the first real build. The CI E2E job exercises the same app code with a real server and browser.
 
 ## Steps (exact actions)
@@ -95,8 +97,8 @@ Alembic version with the image's head.
   `tests/test_migrations.py::test_no_applied_migration_is_ever_dropped` keeps the file from being removed.
 - Never downgrade 0003. Dropping the table destroys the execution claims, which are the run-once evidence.
 
-**Rollback target:** commit `4193a94a7a3ca6443e2a8be48db72c8656c53ac7` (local branch
-`rollback/v5.2.4-plus-0003`). It is `51ef984` (the verified v5.2.4 code) plus only the 0003 migration file, so
+**Rollback target:** commit `4193a94a7a3ca6443e2a8be48db72c8656c53ac7` (branch `rollback/v5.2.4-plus-0003`, local and
+on GitHub). It is `51ef984` (the verified v5.2.4 code) plus only the 0003 migration file, so
 its head is 0003, its `alembic upgrade head` is a no-op and `/ready` passes. This was verified on a disposable
 PostgreSQL 17 with a claim present: `/ready` returned 200 and the claim was intact. Its model-vs-migration drift
 test fails by design, because `models.py` is v5.2.4's. Use it only to restore the API.

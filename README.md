@@ -1,136 +1,391 @@
-# RouteWise AI — Intelligent LLM Gateway
+# RouteWise AI: an intelligent, cost-aware LLM gateway
 
-One API for many LLMs. Each request goes to the cheapest model that is capable enough for it, within per-tenant
-budgets and latency targets. Every routing decision is explained and logged, and a pre-registered benchmark compares
-routing against an always-premium baseline.
+RouteWise is one HTTP API in front of several LLM providers. For each request it scores how demanding the task
+is, picks the cheapest model that is capable enough, enforces per-tenant rate limits and budgets, retries or
+falls back when a provider fails, and records **why** every routing decision was made. A React dashboard shows
+the traffic, costs and decisions. A pre-registered benchmark compares routing against an always-premium baseline.
 
-> **Status (2026-11-04).** Phases 1–6 are implemented and tested locally. Deployment (Phase 7) is prepared but not
-> performed. **Groq is verified live with one successful request** (`openai/gpt-oss-20b`, free tier, persisted to
-> Neon), but OpenRouter and Ollama aren't. Tests and screenshots use the clearly labelled mock provider. The benchmark
-> framework works, but **no benchmark results exist yet**, so this README states no quality, cost or latency
-> improvements. Details: [TASKS.md](TASKS.md).
+| | |
+|---|---|
+| **Live dashboard** | https://routewise-dashboard.vercel.app (admin sign-in required, except *Providers & Models*) |
+| **Live API** | https://routewise-api-ggjk.onrender.com: try [`/api/v1/health`](https://routewise-api-ggjk.onrender.com/api/v1/health) and [`/api/v1/ready`](https://routewise-api-ggjk.onrender.com/api/v1/ready) |
+| **Status** | Deployed (Render + Vercel + Neon). CI runs on every push to `main` and on pull requests; latest verified green run: [42168398327](https://github.com/parammeet83/intelligent-llm-gateway/actions/runs/42168398327) on closure commit `61984cd`. Benchmark Days 1–3 run; Day 4 not run |
 
-## Problem
+> [!IMPORTANT]
+> **Production runs the mock provider only** (`MOCK_PROVIDER_ENABLED=true`, `GROQ_ENABLED=false`; `/health` reports
+> `"simulated_only": true`). Every response from the live API is **simulated** and labelled as such, and the dashboard
+> shows a *DEMO — simulated responses* banner. Real Groq calls happened only in the benchmark, which runs the same
+> gateway pipeline from the command line (see [Benchmark](#benchmark-findings)). Production is kept off Groq so
+> public traffic can't use the free quota the benchmark needs.
 
-Hard-coding one model per feature wastes money on easy requests or quality on hard ones. Teams also can't see what each
-tenant costs or why a request went where it did. RouteWise implements the spec card's idea, *cheap model by default,
-premium only when the task needs it*, with the accounting and evidence to judge whether it works.
+## Contents
 
-## Features
+- [The problem](#the-problem)
+- [What is implemented](#what-is-implemented)
+- [Architecture](#architecture)
+- [Request lifecycle](#request-lifecycle)
+- [Routing](#routing)
+- [Data model](#data-model)
+- [API overview](#api-overview)
+- [Dashboard](#dashboard)
+- [Security and reliability](#security-and-reliability)
+- [Run it locally](#run-it-locally)
+- [Tests](#tests)
+- [Production deployment](#production-deployment)
+- [Benchmark findings](#benchmark-findings)
+- [Limitations and future work](#limitations-and-future-work)
+- [Screenshots](#screenshots)
+- [Documentation map](#documentation-map)
 
-- **Unified API** `POST /api/v1/generate` with task type, quality, priority, latency target, max cost, idempotency key
-- **Deterministic, explainable routing**: complexity score → required tier → 16 exclusion checks → ranking. Every
-  response includes the policy version, reason codes, score breakdown, excluded models and fallback chain
-- **Providers**: Groq, OpenRouter (free `:free` models only, a limited fallback), Ollama (local only), and a mock
-- **Resilience**: timeouts, bounded retries with jittered backoff, Retry-After, circuit breakers, fallback chains, request deadline
-- **No paid usage, enforced**: at startup, in routing, in the executor, and in the OpenRouter adapter
-- **Multi-tenancy**: hashed API keys with create/list/revoke/rotate, isolation, per-tenant rate limits, daily/monthly
-  shadow budgets with **atomic reservations** under concurrency
-- **FinOps accounting**: actual charges (`reported` / `free_tier` / `estimated` / `unavailable`) kept separate from
-  estimated list-price cost, with pricing snapshots (source and date). Unknown is never shown as $0
-- **Benchmark**: 45 cases (v5, pending owner review; experiment manifest pins code, configuration, pacing and quota), deterministic scorers validated with reference and adversarial answers, pre-registered thresholds,
-  Wilson and bootstrap CIs, interleaved strategies, full provenance
-- **Dashboard**: 8 pages (overview, routing decisions, providers and models, tenants and budgets, usage and cost,
-  request logs, evaluation, settings), responsive, admin sign-in via short-lived session tokens
-- **Privacy**: prompts and responses are never stored or logged (hash and length only); secret redaction in logs
+## The problem
+
+Applications that hard-code one model per feature either overpay, sending easy requests to a large model, or
+under-serve, sending hard requests to a small one. Teams also can't easily answer what each customer costs, why a
+request went to a given model, or what happens when a provider is down or rate-limited.
+
+A gateway puts those concerns in one place:
+- **Routing:** cheap model by default, premium only when the task needs it.
+- **Explanations:** every decision is recorded with its reasons.
+- **Tenancy:** isolation and budgets per customer.
+- **Resilience:** retries and fallbacks handled once, not in every application.
+- **Evidence:** a benchmark that tests whether routing saves cost without losing quality.
+
+## What is implemented
+
+| Area | Implemented | Where |
+|---|---|---|
+| Unified API | `POST /api/v1/generate` with task type, quality, priority, preferred tier, latency target, max cost, JSON mode, provider and model constraints, and an idempotency key | [`api/v1/generate.py`](backend/app/api/v1/generate.py), [`schemas.py`](backend/app/api/v1/schemas.py) |
+| Explainable routing | Pure, deterministic rules: features → 0–100 score → required tier → filter every model (each exclusion recorded with a reason code) → rank → selected model plus fallback chain | [`backend/app/routing/`](backend/app/routing/), [`routing_policy.yaml`](backend/config/routing_policy.yaml) |
+| Providers | One `Provider` interface. Adapters: **Groq** (used live in the benchmark), **OpenRouter** (`:free` models only; fallback-only), **Ollama** (local only), **Mock** (deterministic, always `simulated`) | [`backend/app/providers/`](backend/app/providers/) |
+| Resilience | Per-call timeout, bounded retries with jittered backoff, `Retry-After`, circuit breakers, provider lockout, fallback chain, overall request deadline | [`services/executor.py`](backend/app/services/executor.py), [`resilience/health.py`](backend/app/resilience/health.py) |
+| Multi-tenancy | Tenants; API keys stored only as HMAC-SHA256 hashes (create, list, revoke, rotate with grace); cross-tenant isolation; per-tenant rate limits | [`auth/`](backend/app/auth/), [`tenancy/`](backend/app/tenancy/) |
+| Budgets and cost | Daily and monthly **shadow budgets** with atomic reservations (concurrency-tested on PostgreSQL). Actual charges kept separate from estimated list-price cost. Unknown cost is never shown as $0 | [`accounting/`](backend/app/accounting/), [docs/COST_ACCOUNTING.md](docs/COST_ACCOUNTING.md) |
+| No paid usage | Paid models refused at startup, in routing, in the executor and in the OpenRouter adapter; `ALLOW_PAID_MODELS=true` is rejected | [`core/config.py`](backend/app/core/config.py) |
+| Privacy | Prompts and responses are not stored or logged (only a SHA-256 hash and length); credential-shaped values are redacted from logs | [`core/logging.py`](backend/app/core/logging.py) |
+| Dashboard | 8 pages: Overview, Routing Decisions, Providers & Models, Tenants & Budgets, Usage & Cost, Request Logs, Evaluation, Settings. Admin sign-in via short-lived session tokens | [`frontend/src/`](frontend/src/) |
+| Benchmark | 45-case dataset; deterministic scorers; pre-registered thresholds; hash-pinned code and configuration; Wilson and bootstrap CIs; quota-aware pacing; fail-closed run-once protection | [`backend/app/evaluation/`](backend/app/evaluation/), [`evaluation/`](evaluation/) |
+
+**Not implemented (deliberately or not yet):**
+- streaming responses
+- a response cache (evaluated and rejected; `tenants.cache_enabled` exists but is unused)
+- a learned or LLM-based router
+- multi-instance shared health state
+- live OpenRouter or Ollama verification
 
 ## Architecture
 
+```mermaid
+flowchart LR
+  subgraph Clients
+    APP["Client application<br/>(tenant API key rw_...)"]
+    DASH["React dashboard<br/>Vercel"]
+    CLI["Benchmark CLI<br/>app.cli eval-run"]
+  end
+  subgraph API["FastAPI gateway (Render, Docker)"]
+    direction TB
+    R["api/v1 routes<br/>(no business logic)"]
+    GW["services/gateway<br/>auth, rate limit, budget, persist"]
+    RT["routing/engine<br/>pure, deterministic"]
+    EX["services/executor<br/>retry, fallback, breaker, deadline"]
+    R --> GW --> RT
+    GW --> EX
+  end
+  subgraph Providers
+    MOCK["Mock (production)"]
+    GROQ["Groq (benchmark only)"]
+    OR["OpenRouter :free (not used live)"]
+    OL["Ollama (local only)"]
+  end
+  DB[("Neon PostgreSQL<br/>Alembic 0003")]
+  APP -->|HTTPS| R
+  DASH -->|"HTTPS, admin session"| R
+  CLI -->|"same pipeline, in-process"| GW
+  EX --> MOCK
+  EX -.-> GROQ
+  EX -.-> OR
+  EX -.-> OL
+  GW -->|"asyncpg + TLS"| DB
 ```
-Client app ──Bearer rw_… key──▶ FastAPI gateway ──────────────────────────────▶ Groq · OpenRouter · Ollama · Mock
-                                 auth → rate limit → budget read → route (pure)
-                                 → idempotent log → atomic reservation
-                                 → execute (retry/fallback/breaker, budget-capped)
-                                 → settle + persist attempts            ──asyncpg/TLS──▶ Neon PostgreSQL
-React dashboard ──admin session──▶ /api/v1/admin/*  (usage, requests, tenants, keys, config, evaluation)
-Benchmark CLI ──same pipeline (in-process)──▶ evaluation_runs / evaluation_results + report files
-```
 
-Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The benchmark CLI doesn't call the deployed API. It builds the **same** gateway pipeline in-process
+(`services/factory.build_gateway`), with Groq enabled for that process only, and writes to the same Neon database.
+More detail: [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-**Stack:** Python 3.12 · FastAPI · Pydantic · SQLAlchemy 2 (async) · Alembic · asyncpg · HTTPX · pytest ·
-React 19 · TypeScript · Vite · Tailwind · Recharts · Vitest · Playwright · Neon PostgreSQL · GitHub Actions · Render (prepared).
+**Stack:**
+- Backend: Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (async), Alembic, asyncpg, HTTPX, uv, pytest, ruff, mypy (strict)
+- Frontend: React 19, TypeScript, Vite, Tailwind CSS, Recharts, Vitest, Playwright
+- Platform: Neon PostgreSQL 17, Render (Docker), Vercel, GitHub Actions
 
-## Routing in one paragraph
+## Request lifecycle
 
-A task-type prior plus capped points for input length, output length, JSON, multi-step markers, constraint words,
-reasoning verbs, math and code blocks gives a 0–100 score: below 35 is small, below 65 medium, otherwise premium. High-quality
-requests and client preferences can raise the floor. Every model is checked against provider, paid status, tier,
-capability, context, live health, budget and observed latency. The eligible list is ranked by worst-case list cost
-(`cheapest_capable`) or tier first (`lowest_tier_first`), with OpenRouter ranked last to protect its 50/day allowance.
-It's a transparent heuristic, not an optimal router. See [docs/ROUTING_METHODOLOGY.md](docs/ROUTING_METHODOLOGY.md),
-including known limits.
+1. **Authenticate.** The `Bearer rw_…` key is HMAC-hashed and looked up. The tenant always comes from the key,
+   never from the request body (unknown body fields are rejected).
+2. **Rate limit.** An atomic per-tenant fixed-window counter (`rate_limit_windows`); over the limit → `429`.
+3. **Idempotency.** `(tenant, request_id)` is unique; a repeated `request_id` → `409`.
+4. **Route.** Pure function, no I/O: score the prompt, pick the required tier, filter and rank every model.
+   Nothing eligible → `422 NO_ELIGIBLE_MODEL` with every exclusion listed.
+5. **Reserve budget.** Atomically reserve the chosen model's worst-case list cost against the tenant's daily and
+   monthly budgets. Can't cover it → `402 BUDGET_EXHAUSTED`.
+6. **Execute.** Call the provider with a timeout. Transient errors get a bounded retry with jittered backoff;
+   rate limits, auth errors and missing models move to the next model in the fallback chain. Circuit breakers skip
+   unhealthy models; an overall deadline caps the request.
+7. **Settle.** Record actual charge and estimated list cost separately, move the reservation to spent, and
+   release the rest.
+8. **Persist and respond.** One `request_logs` row (with the full decision record) plus one `request_attempts`
+   row per provider call. The response includes the content, model, cost, latency and the `routing` explanation.
 
-## Benchmark
+## Routing
 
-`baseline_premium` (every case on the premium tier) vs `routewise` vs `routewise_tier_first`, on 45 cases (15 simple,
-18 standard, 12 complex), with thresholds registered before any run: non-inferior if within 5 percentage points, and
-supported only by the bootstrap CI.
+Routing policy `rw-2026.11-v1` ([`routing_policy.yaml`](backend/config/routing_policy.yaml); full method in
+[docs/ROUTING_METHODOLOGY.md](docs/ROUTING_METHODOLOGY.md)):
 
-**Results: none yet.** The dataset is now v5 (see the [changelog](evaluation/datasets/routewise_bench_v5.CHANGELOG.md)),
-and results are publishable only after you review it. Any result will apply only to this fixed suite and pinned
-configuration, not to production workloads in general. With the current providers, the comparison is between two sizes of one family (GPT-OSS 20B vs 120B), not
-independent model families. A mock pipeline check (135 requests, v1) ran end to end and was correctly marked
-*simulated, not publishable*. See [docs/EVALUATION.md](docs/EVALUATION.md).
+- **Score.** A task-type prior (classification 5 … reasoning 50), plus capped points for input length, long
+  output, JSON output, multi-step markers, constraint words, reasoning verbs, math terms and code blocks; 0–100.
+- **Tier.** Score < 35 → `small`, < 65 → `medium`, otherwise `premium`.
+  - `quality=high` forces premium.
+  - `preferred_tier` can raise the floor; it lowers it only with `allow_downgrade=true`.
+- **Filter.** Every model is checked, and *all* its exclusion reasons are recorded: provider disabled, paid,
+  tier too low, missing JSON capability, context or output too small, circuit open, quota exhausted, budget,
+  unknown price under a budget, observed latency, and more.
+- **Rank.** Two selection policies:
+  - `cheapest_capable` (the `routewise` benchmark strategy) orders eligible models by worst-case list cost, so
+    tier is only a floor.
+  - `lowest_tier_first` (`routewise_tier_first`) prefers the required tier, then cost.
+  - OpenRouter ranks last in both, to protect its 50-requests/day free allowance.
+- **Explain.** Every response carries `routing`: policy version, score contributions, computed and required
+  tier, reason codes (e.g. `LOW_COMPLEXITY`, `CHEAPEST_ELIGIBLE`, `TIER_ESCALATED`), excluded models with reasons,
+  and the fallback chain.
 
-## Database
+This is a transparent heuristic, not an optimal or learned router. It misses semantic difficulty and can be gamed
+with keywords.
 
-12 tables are shown in [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md): tenants, api_keys, tenant_budgets,
-rate_limit_windows, pricing_snapshots, provider_models, routing_policies, request_logs, request_attempts and
-evaluation_*. Alembic head `0002` is applied to Neon.
+**Current catalog** ([`models.yaml`](backend/config/models.yaml)):
+- Groq has `openai/gpt-oss-20b` (small) and `openai/gpt-oss-120b` (premium), and no medium model, so medium
+  requests escalate to 120B.
+- The mock provider has `mock-small`, `mock-medium` and `mock-premium`.
+- Five OpenRouter `:free` models are configured as fallbacks.
+- Ollama `qwen2.5:1.5b` is local only.
 
-## API example
+## Data model
+
+13 tables, managed by Alembic (head **`0003`** on Neon). Columns:
+[docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md).
+
+| Group | Tables |
+|---|---|
+| Tenancy | `tenants`, `api_keys` (hash and prefix only), `tenant_budgets` (limit, spent, reserved per period), `rate_limit_windows` |
+| Catalog and policy | `provider_models`, `pricing_snapshots` (append-only list prices with source and date), `routing_policies` (versioned) |
+| Traffic | `request_logs` (one per request: status, decision JSON, tokens, cost, prompt hash), `request_attempts` (one per provider call) |
+| Benchmark | `evaluation_cases`, `evaluation_runs`, `evaluation_results`, `benchmark_execution_claims` (one row per revision and scheduled day; unique constraint) |
+
+## API overview
+
+Base path `/api/v1`. Full reference with errors and examples: [docs/API.md](docs/API.md).
+
+| Access | Endpoints |
+|---|---|
+| Public | `GET /health`, `GET /ready`, `GET /models`, `GET /providers` |
+| Tenant key | `POST /generate`, `GET /me`, `GET /me/usage`, `GET /me/requests`, `GET /me/requests/{id}` |
+| Admin | `POST /admin/session`; `GET/POST /admin/tenants`, `PATCH /admin/tenants/{slug}`; `GET/POST /admin/tenants/{slug}/keys`, `POST /admin/keys/{id}/revoke`, `POST /admin/keys/{id}/rotate`; `GET /admin/usage`, `GET /admin/requests[/{id}]`, `GET /admin/config`, `GET /admin/evaluation/runs[/{id}]` |
 
 ```powershell
-$h = @{ Authorization = "Bearer $env:ROUTEWISE_KEY" }   # tenant key from create-api-key; never commit it
-Invoke-RestMethod http://127.0.0.1:8000/api/v1/generate -Method Post -Headers $h -ContentType application/json `
-  -Body '{"prompt":"Classify the sentiment: I love this phone.","task_type":"classification","request_id":"demo-1"}'
+# Local example. The key comes from `app.cli create-api-key`; never commit it.
+$h = @{ Authorization = "Bearer $env:ROUTEWISE_KEY" }
+$body = @{ prompt = "Classify the sentiment: I love this phone."; task_type = "classification"
+           request_id = "demo-$([guid]::NewGuid())" } | ConvertTo-Json      # unique per request; a repeat returns 409
+Invoke-RestMethod http://127.0.0.1:8000/api/v1/generate -Method Post -Headers $h -ContentType application/json -Body $body
 ```
 
-Full reference: [docs/API.md](docs/API.md).
+## Dashboard
 
-## Local setup (Windows PowerShell)
+React single-page app ([`frontend/`](frontend/)), deployed on Vercel. The only frontend variable is
+`VITE_API_BASE_URL`, which is public.
 
-Requirements: Python 3.12, [uv](https://docs.astral.sh/uv/), Node 24.
+| Page | Shows |
+|---|---|
+| Overview | KPIs (requests, success rate, p50/p95 latency, fallback rate, estimated list-price cost, actual charges, tokens, rejected), traffic by tier, gateway status |
+| Routing Decisions | Each request's score, required tier, chosen model, reason codes and exclusions |
+| Providers & Models | Registry, tiers, capabilities, list prices with sources, live health (no sign-in needed) |
+| Tenants & Budgets | Create tenants, set budgets, issue, revoke and rotate keys (plaintext shown once) |
+| Usage & Cost | Requests, tokens, list-price cost and latency over time, by provider, model, tier and tenant |
+| Request Logs | Searchable, filterable log with per-request decision and attempt detail |
+| Evaluation | Benchmark runs grouped by label, with pass rates, CIs, cost per accepted answer and verdicts |
+| Settings | Routing policy and non-secret runtime settings, readiness |
+
+## Security and reliability
+
+- **Tenancy.** Tenant identity comes only from the API key, which is stored as an HMAC-SHA256 hash with a server
+  pepper. Cross-tenant access returns 404. Keys can be revoked or rotated with a grace period.
+- **Admin.** `ADMIN_TOKEN` is exchanged for a short-lived session token (login throttled to 5 attempts/min). The
+  dashboard never stores the admin token itself.
+- **Production config.** Weak or default secrets and SQLite are refused at startup in production; `/docs` is
+  hidden; CORS allows only the dashboard origin.
+- **Secrets.** Nothing in code or frontend variables; `.env` is git-ignored. CI runs `detect-secrets` against a
+  reviewed baseline.
+- **Reliability.** Provider timeouts, retries, circuit breakers, fallbacks and a request deadline.
+  - Budget reservations are atomic. If a request crashes mid-flight, `app.cli reconcile` later settles its
+    reservation, conservatively charging it in full.
+  - Benchmark database writes are retried with backoff and are idempotent.
+  - A scheduled benchmark day takes an **atomic database claim** (unique per revision and day) before any provider
+    call, so it can never start twice.
+
+Details: [docs/TENANCY_AND_SECURITY.md](docs/TENANCY_AND_SECURITY.md) and
+[docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md#error-handling-and-reliability).
+
+## Run it locally
+
+Requirements: Windows PowerShell, Python 3.12, [uv](https://docs.astral.sh/uv/), Node 24.
 
 ```powershell
-Copy-Item .env.example .env        # fill DATABASE_URL (Neon), ADMIN_TOKEN, API_KEY_PEPPER
-.\scripts\dev.ps1 -Setup           # install, migrate, seed, start API (:8000) + dashboard (:5173)
+git clone https://github.com/parammeet83/intelligent-llm-gateway.git
+cd intelligent-llm-gateway
+Copy-Item .env.example .env      # then edit .env (see below)
+.\scripts\dev.ps1 -Setup         # installs dependencies, migrates, seeds, starts API :8000 and dashboard :5173
+```
+
+In `.env`:
+- Set `ADMIN_TOKEN` to a long random value, e.g. from
+  `python -c "import secrets; print(secrets.token_urlsafe(48))"`. Admin endpoints and dashboard sign-in stay
+  disabled until it is set.
+- Either fill in `DATABASE_URL` or delete that line to use the local SQLite default. The template's placeholder URL
+  won't connect.
+- Leave `MOCK_PROVIDER_ENABLED=true` and `GROQ_ENABLED=false` for a fully offline, simulated setup.
+
+Then, in a second PowerShell window:
+
+```powershell
 cd backend
 uv run python -m app.cli create-tenant my-app "My App" --daily 1.00
-uv run python -m app.cli create-api-key my-app     # prints the key once
+uv run python -m app.cli create-api-key my-app          # prints the key once; keep it out of Git
 ```
 
-Sign in to the dashboard with your `ADMIN_TOKEN`. Without a `.env`, the backend uses local SQLite. With only the mock
-provider enabled, the dashboard shows a **DEMO — simulated responses** banner.
+Open http://localhost:5173 and sign in with your `ADMIN_TOKEN`.
 
-### Environment variables
+**Environment** ([`.env.example`](.env.example) documents every variable; use placeholders, never real values in
+docs):
 
-See [.env.example](.env.example) for the full list with comments. Key ones: `DATABASE_URL`, `ADMIN_TOKEN`,
-`API_KEY_PEPPER`, `CORS_ORIGINS`, `MOCK_PROVIDER_ENABLED`, `GROQ_ENABLED`/`GROQ_API_KEY`/`GROQ_BILLING_PLAN`,
-`OPENROUTER_ENABLED`/`OPENROUTER_API_KEY`, `OLLAMA_ENABLED`, `REQUEST_DEADLINE_S`, `CIRCUIT_*`, `RETRY_*`. The frontend
-uses only `VITE_API_BASE_URL`, which is public and not a secret.
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | PostgreSQL URL (e.g. `postgresql://<user>:<password>@<endpoint>.neon.tech/<db>?sslmode=require`); defaults to local SQLite |
+| `ADMIN_TOKEN`, `API_KEY_PEPPER` | Admin sign-in secret and API-key hashing pepper (long random values; required in production) |
+| `CORS_ORIGINS` | Allowed dashboard origin(s) |
+| `MOCK_PROVIDER_ENABLED` | `true` for the simulated provider |
+| `GROQ_ENABLED`, `GROQ_API_KEY`, `GROQ_BILLING_PLAN` | Real Groq calls (free plan) |
+| `OPENROUTER_ENABLED`, `OPENROUTER_API_KEY`, `OLLAMA_ENABLED`, `OLLAMA_BASE_URL` | Optional providers |
+| `REQUEST_DEADLINE_S`, `PROVIDER_TIMEOUT_S`, `RETRY_BACKOFF_*`, `CIRCUIT_*` | Reliability tuning (defaults: 60 s, 30 s, 0.5–4 s, 3 failures / 30 s) |
+| `ALLOW_PAID_MODELS` | Must stay `false`; `true` is refused |
 
-## Testing
+To run the backend or dashboard on their own:
 
 ```powershell
-cd backend;  uv run ruff check .; uv run mypy app tests; uv run pytest -q
-cd frontend; npm run lint; npm run typecheck; npm test; npm run build; npm run test:e2e
+cd backend;  uv run alembic upgrade head; uv run uvicorn app.main:create_app --factory --reload --port 8000
+cd frontend; npm ci; npm run dev
 ```
 
-Latest local results: backend **382 passed** (86 skipped: PostgreSQL variants and opt-in live checks), frontend **28
-passed**, Playwright **9 passed** (desktop and mobile), pip-audit and production `npm audit` clean, and secret scan clean
-against a reviewed baseline. CI is defined but **has not run yet** (no push). See [docs/TESTING.md](docs/TESTING.md).
+## Tests
 
-## Deployment
+```powershell
+cd backend
+uv run ruff check .; uv run ruff format --check .; uv run mypy app tests
+uv run pytest -q          # SQLite; set TEST_DATABASE_URL to a DISPOSABLE PostgreSQL to add the PostgreSQL variants
+cd ..\frontend
+npm run lint; npm run typecheck; npm test; npm run build
+npm run test:e2e          # Playwright: starts its own throwaway backend (SQLite, mock provider)
+```
 
-**Not deployed yet; there is no live URL.** Prepared: [`render.yaml`](render.yaml) (Render free web service and static
-site), [`backend/Dockerfile`](backend/Dockerfile), and Neon. Production mode was verified locally against Neon. Steps and
-blockers are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Latest CI run, on commit `61984cd` (GitHub Actions, PostgreSQL 17 service):
+
+| Suite | Result |
+|---|---|
+| Backend tests | 1,689 passed, 10 skipped (opt-in live-database checks), 27 expected failures |
+| Frontend Vitest | 28 passed |
+| Playwright | 9 passed (desktop and mobile) |
+| Dependency audits | `pip-audit` clean; production `npm audit` 0 vulnerabilities |
+| Secret scan | clean |
+
+No automated test calls a real provider. The 27 expected failures are strict `xfail` markers: older benchmark
+revisions' "manifest still matches the code" tests, which *must* fail now that the code has moved on (see
+[`tests/evaluation/conftest.py`](backend/tests/evaluation/conftest.py)). See [docs/TESTING.md](docs/TESTING.md).
+
+## Production deployment
+
+```mermaid
+flowchart LR
+  U["Browser"] -->|HTTPS| V["Vercel<br/>static React build"]
+  U -->|"HTTPS, CORS: dashboard origin only"| RW["Render free web service<br/>Docker, Singapore"]
+  RW -->|"asyncpg + TLS"| N[("Neon PostgreSQL 17<br/>ap-southeast-1")]
+  GH["GitHub main"] -->|"CI: lint, types, tests,<br/>PostgreSQL, e2e, secrets"| CI["GitHub Actions"]
+  GH -.->|"manual deploy only<br/>(Auto-Deploy off)"| RW
+```
+
+- The container runs `alembic upgrade head` and starts uvicorn only if the migration succeeds.
+- Render's health check is `/api/v1/health`; `/api/v1/ready` checks the database and that its Alembic version
+  matches the code.
+- Render **Auto-Deploy is off**: commits are deployed manually after CI passes. The live deploy is commit `2456814`
+  (migration `0003`).
+- The free Render instance sleeps after 15 idle minutes; the first request then takes about a minute.
+- Migration `0003` changed the rollback rules: never deploy a commit without it. The safe rollback target is
+  `4193a94` (branch `rollback/v5.2.4-plus-0003`). See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+## Benchmark findings
+
+Full write-up: [docs/BENCHMARK_RESULTS.md](docs/BENCHMARK_RESULTS.md).
+
+**Setup.**
+- Strategies:
+  - `baseline_premium`: every request on the premium tier
+  - `routewise`: `cheapest_capable`
+  - `routewise_tier_first`: `lowest_tier_first`
+- Dataset: 45 cases, 15 simple, 18 standard, 12 complex.
+- Models: real Groq free-tier `gpt-oss-20b` and `gpt-oss-120b`.
+- Plan: a four-day schedule of 10–12 cases per day (10, 12, 11 and 12 cases), registered before Day 1 (v5.2.3).
+
+| Day | Revision | Combinations | Pass rate (baseline / routewise / tier-first) | Status |
+|---|---|---|---|---|
+| 1 (2026-11-04) | v5.2.3 | 30/30 | 10/10 · 9/10 · 9/10 | Completed. Both RouteWise strategies failed case T03 on the small model; the registered quality and cost rules **did not hold** that day |
+| 2 (2026-11-05) | v5.2.3 | 11/36 | — | **Interrupted** by a Neon timeout. It remains an incident record; its runs stay `failed` |
+| 2 (recovery) | v5.2.4 | 36/36 | 12/12 · 12/12 · 12/12 | A **separate**, disclosed post-hoc registration later accounted for all 36 Day 2 combinations: 11 genuine results carried over plus 25 run once. **Exploratory, non-publishable** |
+| 3 (2026-11-06) | v5.2.5 | 33/33 | 11/11 · 11/11 · 11/11 | Completed; 25/25 independent reconciliation checks; **post-incident exploratory, non-publishable** |
+| 4 | — | — | — | **Not run, not authorised** |
+
+**What this does and doesn't show.**
+- **No confirmatory result.** The four-day confirmatory experiment is **incomplete**: Day 2 was interrupted, Day 4
+  wasn't run, and the Day 2 recovery and Day 3 registrations were written after earlier days had been observed. No
+  claim of statistical superiority or non-inferiority is made.
+- **Cost ratios are exploratory.** RouteWise sent 50–70% of each day's requests to the smaller model. On Day 3, estimated
+  list-price cost per accepted answer was roughly 0.71–0.73 × the baseline's, and 0.86–0.92 × on Day 1. These are
+  shadow list prices; actual charges were **$0** (free tier).
+- **The two RouteWise strategies can't be told apart.** With only two Groq models enabled, they chose the same model
+  on every case.
+- **Small samples:** 10–12 cases per day give wide confidence intervals (e.g. [74.1%, 100%] for 11/11).
+
+## Limitations and future work
+
+**Limitations:**
+- **Production is a demo:** mock provider only, so live responses are simulated.
+- **Benchmark coverage:** only Groq was exercised with real calls (in the benchmark). OpenRouter and Ollama
+  adapters are tested with fake transports only.
+- **Routing heuristic:** keyword-based complexity scoring misses semantic difficulty, and tier labels are
+  judgement calls.
+- **Single-instance state:** provider health, circuit breakers and the OpenRouter quota counter live in memory per
+  process.
+- **Rate limiting:** fixed windows allow up to 2× bursts across a minute boundary.
+- **Non-streaming only.**
+- **Known display issue:** the dashboard's Evaluation page shows two benchmark groups as "publishable" when they
+  are not ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)).
+
+**Future work:**
+- shared health state (e.g. Redis) for multiple instances
+- streaming
+- semantic or learned complexity estimation, validated against the benchmark
+- a fresh, fully prospective multi-day registration with more cases and more distinct model families
+- correcting the Evaluation page's publishability display
 
 ## Screenshots
 
-Captured by Playwright from the running app with **simulated (mock-provider) demo data**. These are not real usage.
+The images in [`docs/screenshots/`](docs/screenshots/) were captured by Playwright from a local run with
+**simulated (mock-provider) demo data**. They are not production usage. A checklist for capturing up-to-date
+production screenshots is in [docs/PORTFOLIO_ASSET_CHECKLIST.md](docs/PORTFOLIO_ASSET_CHECKLIST.md).
 
 | | |
 |---|---|
@@ -138,36 +393,13 @@ Captured by Playwright from the running app with **simulated (mock-provider) dem
 | ![Usage and cost](docs/screenshots/usage-cost.png) | ![Providers and models](docs/screenshots/providers-models.png) |
 | ![Tenants and budgets](docs/screenshots/tenants-budgets.png) | ![Mobile overview](docs/screenshots/mobile-overview.png) |
 
-## Comparison with reference repositories
+## Documentation map
 
-The spec card lists three reference repositories (production-llm-applications, awesome-llm-prod,
-awesome-llm-token-optimization). This project was written from scratch; **no code was copied from them**. They have not
-yet been reviewed in detail for this README, so no claims are made about what they contain. What this implementation
-emphasises, which you should check against them before citing differences:
-
-- a pre-registered, CI-gated benchmark with reference-validated scorers, not a demo comparison
-- strict separation of actual charges from shadow list-price cost, with "unknown" never shown as $0
-- atomic, concurrency-tested budget reservations, with execution capped by the reservation
-- no-paid-usage guarantees enforced in four places
-- per-decision explanations with every excluded candidate and its reasons
-
-## Limitations
-
-- **Live verification is minimal:** one successful Groq request (and one 404 against a retired model). OpenRouter and
-  Ollama are untested live. Groq currently has no medium-tier model, so medium-tier requests use `gpt-oss-120b`.
-- Keyword-based complexity scoring misses semantic difficulty and can be gamed. Tier labels are judgement calls.
-- Provider health and the OpenRouter quota guard are in-memory per process (fine for one instance).
-- Fixed-window rate limits allow 2× bursts across a minute boundary.
-- An attempt with unknown usage (for example a timeout) is charged to the shadow budget at its worst
-  case and makes the list cost `unavailable`. This is conservative, so it over-counts on purpose.
-- 45 benchmark cases give wide CIs; "premium" means the best *free* model, not a frontier model.
-- Non-streaming only. No response cache (by decision).
-- Free hosting sleeps after 15 minutes idle (~1 minute wake).
-
-## Documentation
-
-[PRD](docs/PRD.md) · [TRD](docs/TRD.md) · [Architecture](docs/ARCHITECTURE.md) · [Routing](docs/ROUTING_METHODOLOGY.md) ·
-[Providers](docs/PROVIDER_INTEGRATION.md) · [Cost accounting](docs/COST_ACCOUNTING.md) · [Evaluation](docs/EVALUATION.md) ·
-[Tenancy and security](docs/TENANCY_AND_SECURITY.md) · [Database](docs/DATABASE_SCHEMA.md) · [API](docs/API.md) ·
-[Testing](docs/TESTING.md) · [Deployment](docs/DEPLOYMENT.md) · [Runbook](docs/OPERATIONS_RUNBOOK.md) ·
-[Traceability](docs/REQUIREMENTS_TRACEABILITY.md)
+| For | Read |
+|---|---|
+| A guided tour of the design | [Project overview](docs/PROJECT_OVERVIEW.md) |
+| Presenting it | [Demo guide](docs/DEMO_GUIDE.md) · [Interview preparation](docs/INTERVIEW_PREPARATION.md) · [Portfolio checklist](docs/PORTFOLIO_ASSET_CHECKLIST.md) |
+| Results | [Benchmark results](docs/BENCHMARK_RESULTS.md) · [Day 3 closure](docs/BENCHMARK_DAY3_CLOSURE_v5.2.5.md) · [Evaluation method](docs/EVALUATION.md) |
+| Internals | [Architecture](docs/ARCHITECTURE.md) · [Routing](docs/ROUTING_METHODOLOGY.md) · [Providers](docs/PROVIDER_INTEGRATION.md) · [Cost accounting](docs/COST_ACCOUNTING.md) · [Tenancy and security](docs/TENANCY_AND_SECURITY.md) · [Database](docs/DATABASE_SCHEMA.md) · [API](docs/API.md) |
+| Operations | [Deployment](docs/DEPLOYMENT.md) · [Operations runbook](docs/OPERATIONS_RUNBOOK.md) · [Benchmark operator runbook](docs/BENCHMARK_OPERATOR_RUNBOOK.md) · [Testing](docs/TESTING.md) · [Known issues](docs/KNOWN_ISSUES.md) |
+| Requirements | [PRD](docs/PRD.md) · [TRD](docs/TRD.md) · [Traceability](docs/REQUIREMENTS_TRACEABILITY.md) |

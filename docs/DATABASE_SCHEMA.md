@@ -1,11 +1,13 @@
 # Database Schema
 
-Managed by Alembic (`backend/alembic/versions/`). Current head: **`0002`**, applied to Neon on 2026-11-04 with no drift.
+Managed by Alembic (`backend/alembic/versions/`). Current head: **`0003`**, applied to Neon on 2026-11-06 by the
+Render deploy of commit `2456814` (13 tables).
 
 | Revision | Change |
 |---|---|
 | `0001` | Initial schema (12 tables) |
 | `0002` | Additive: `api_keys.expires_at` (rotation grace period), `request_logs.budget_reservation` JSON (crash-safe reservation release) |
+| `0003` | Additive: `benchmark_execution_claims` (one row per benchmark revision and scheduled day; unique `(revision, schedule_day)`). Never downgrade it: dropping the table destroys the run-once evidence. Never deploy an image without this file (see [DEPLOYMENT.md](DEPLOYMENT.md)) |
 
 Notes: `tenants.cache_enabled` exists from `0001` but is **unused**, because caching was rejected (TENANCY_AND_SECURITY.md).
 `routing_policies` is written by `app.cli seed`: each policy version is stored once, and editing a recorded version
@@ -38,6 +40,7 @@ uv run python -m app.cli seed        # sync model registry + demo tenants (idemp
 | `evaluation_cases` | Benchmark cases. Unique `(dataset_version, case_key)`. | — |
 | `evaluation_runs` | One run per strategy: config snapshot, `preregistration_sha256`, `simulated`. | — |
 | `evaluation_results` | Per-case outcome: pass/score, model, tier, cost, latency, scorer details. Unique `(run_id, case_id)`. | `CASCADE` from run |
+| `benchmark_execution_claims` | Atomic run-once claim: `revision`, `schedule_day`, `label`, `claimed_at`. Unique `(revision, schedule_day)`; inserted before any benchmark run or provider call. | Never deleted |
 
 ### Considered and not added
 

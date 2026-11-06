@@ -87,7 +87,7 @@ summary:
   - production stays mock-only
 - Neon checkpoint before the migration: branch `br-cold-snow-b35jvc94` (`pre-0003-v5.2.5-20261106`, LSN
   `0/1E6B430`, 2026-11-06 04:17:38 UTC). Verified identical to production.
-- Rollback target: commit `4193a94` (local branch `rollback/v5.2.4-plus-0003`). See `docs/DEPLOYMENT.md`; never
+- Rollback target: commit `4193a94` (branch `rollback/v5.2.4-plus-0003`, local and on GitHub). See `docs/DEPLOYMENT.md`; never
   deploy a commit without migration 0003.
 
 ## Deliverables (local, git-ignored)

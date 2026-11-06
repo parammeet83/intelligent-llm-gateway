@@ -70,7 +70,8 @@ both Llama models (shut down 2026-08-16), `gpt-oss-20b` is the **small-tier** Gr
 Llama 8B), so simple Groq traffic no longer escalates. Groq now has **no medium-tier model**, so medium-tier requests
 escalate to `gpt-oss-120b`. The two `selection` policies now differ mainly in how they treat OpenRouter and Ollama models.
 Which is better is still a benchmark question (`routewise` vs `routewise_tier_first` against the all-premium baseline).
-No answer exists until a live run.
+In the live benchmark (Days 1–3) the two policies chose the same Groq model on every case, so the data can't
+distinguish them; see [BENCHMARK_RESULTS.md](BENCHMARK_RESULTS.md).
 
 **Carried issue 2 (complex + JSON had no fallback).** Resolved by adding `nvidia/nemotron-3.5-super-vl:free` (OpenRouter;
 120B-total MoE; catalog lists `response_format`) as a premium JSON-capable fallback. Its tier is a judgement call. If a

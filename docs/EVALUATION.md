@@ -1,8 +1,13 @@
 # Evaluation
 
-Status (2026-11-04): **framework implemented and tested; live benchmark not yet performed.** The
-only benchmark runs so far used the mock provider. They check that the pipeline works and are labelled
-*simulated, not publishable*. **There are no benchmark results yet.**
+Status (2026-11-06): **live benchmark Days 1–3 run on Groq; Day 4 not run; the four-day confirmatory
+experiment is incomplete.**
+- Day 1 completed (v5.2.3).
+- Day 2 was interrupted, then completed by a disclosed post-hoc recovery (v5.2.4, exploratory).
+- Day 3 completed under a post-incident exploratory registration (v5.2.5, 33/33, 25/25 reconciliation checks).
+
+Results and limitations: [BENCHMARK_RESULTS.md](BENCHMARK_RESULTS.md). This file documents the method and the
+history of dataset revisions; the revision notes below were written at the time and describe the state then.
 
 **Current dataset: `routewise_bench_v5`** (pending your review), a scoring-only revision of v4. v1–v4
 are kept unchanged, with their own pre-registrations and manifests. Changes:
