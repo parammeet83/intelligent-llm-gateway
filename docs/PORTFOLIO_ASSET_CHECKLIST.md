@@ -15,6 +15,7 @@ Captured with Playwright (real Chromium) from the **deployed** app and public Gi
 | `04-routing-decision.png` | The `interview-demo` simulated request's decision record: score 68.16, reason codes, contributions, candidates |
 | `05-request-logs.png` | Request Logs filtered to `mock-premium`, showing that one simulated request |
 | `06-usage-cost.png` | Usage & Cost: actual charges $0 vs estimated list-price cost, tokens, latency |
+| `07-evaluation.png` | The Evaluation page after the frontend release (`dpl_27aHL1rWd8rWgzuikZmx9dG97TTa`): separate execution and publication badges, the review line and the incomplete-schedule notice |
 | `08-health-ready.png` | The live `/api/v1/health` and `/api/v1/ready` responses (two genuine captures stacked in one image) |
 | `09-github-overview.png` | The public repository page at commit `60a3740` |
 | `10-github-ci.png` | CI run 42330582354 (all four jobs green) on the Day 4 registration commit `60a3740` |
@@ -23,8 +24,6 @@ Captured with Playwright (real Chromium) from the **deployed** app and public Gi
 **Still missing (genuinely not captured):**
 - `03-request-powershell.png`: a real PowerShell window can't be captured by browser automation. Take it
   yourself during a demo, and crop out the key.
-- `07-evaluation.png`: skipped on purpose. The Evaluation-page fix is in the source but not deployed, so the live
-  page still shows misleading badges ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)).
 
 The demo request behind 04 and 05 used a temporary key, revoked right afterwards.
 

@@ -373,18 +373,15 @@ Full write-up: [docs/BENCHMARK_RESULTS.md](docs/BENCHMARK_RESULTS.md).
   process.
 - **Rate limiting:** fixed windows allow up to 2× bursts across a minute boundary.
 - **Non-streaming only.**
-- **Known display issues** ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)):
-  - The Evaluation page's misleading "publishable" badges and recovery count are fixed in the source, but the fix
-    is **not yet deployed** to the live dashboard.
-  - The DEMO banner overstates "no real model was called": the same database also holds the real Groq benchmark
-    requests.
+- **Dashboard history mixes real and simulated records:** the live API only serves mock responses, but the
+  benchmark's real Groq requests (from the CLI) are stored in the same database. The DEMO banner and the
+  Evaluation page now say so (fixed 2026-11-07; see [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)).
 
 **Future work:**
 - shared health state (e.g. Redis) for multiple instances
 - streaming
 - semantic or learned complexity estimation, validated against the benchmark
 - a fresh, fully prospective multi-day registration with more cases and more distinct model families
-- deploying the Evaluation-page fix and correcting the DEMO banner wording
 
 ## Screenshots
 
@@ -393,13 +390,14 @@ Genuine screenshots of the **deployed** app, captured with Playwright (real Chro
 - The live API is mock-only, so the one interactive request shown (tenant `interview-demo`) is **simulated**.
 - The `eval-runner` rows and token totals come from the real Groq benchmark, which ran from the CLI against the same
   database.
-- The Evaluation page is not shown, because its fix isn't deployed yet.
+- The Evaluation page shows each benchmark group's execution status and publication eligibility separately.
 
 | | |
 |---|---|
 | ![Overview](docs/screenshots/production/02-overview.png) | ![Routing decision](docs/screenshots/production/04-routing-decision.png) |
 | ![Request logs](docs/screenshots/production/05-request-logs.png) | ![Usage and cost](docs/screenshots/production/06-usage-cost.png) |
-| ![Health and readiness](docs/screenshots/production/08-health-ready.png) | ![Mobile overview](docs/screenshots/production/11-mobile-overview.png) |
+| ![Evaluation](docs/screenshots/production/07-evaluation.png) | ![Health and readiness](docs/screenshots/production/08-health-ready.png) |
+| ![Mobile overview](docs/screenshots/production/11-mobile-overview.png) | |
 
 Older images in [`docs/screenshots/`](docs/screenshots/) are from a local mock run on 2026-11-04. The checklist is in
 [docs/PORTFOLIO_ASSET_CHECKLIST.md](docs/PORTFOLIO_ASSET_CHECKLIST.md).

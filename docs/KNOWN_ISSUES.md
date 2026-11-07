@@ -6,11 +6,14 @@ itself.
 
 ## KI-1: the Evaluation page shows "publishable" for non-publishable runs
 
-**Status (2026-11-07): fixed in the source, not yet deployed.** `Evaluation.tsx` now takes each group's status
-from the registration recorded in its runs' `config_snapshot` (`execution_schedule`, `execution_recovery`),
-with a regression test in `App.test.tsx`; no backend, schema or benchmark record changed. The live dashboard
-(Vercel) still shows the old behaviour until the frontend is redeployed, which needs a separate, authorised
-Vercel deploy. Until then, keep the Evaluation page out of screenshots and demos.
+**Status: FIXED and deployed** (release commit `43a2394` (CI run 42336926673 green), deployed once to Vercel production as `dpl_27aHL1rWd8rWgzuikZmx9dG97TTa` on 2026-11-07). Verified on production (19/19 read-only checks).
+- Each group shows its execution status and its publication eligibility as separate badges, taken from the
+  registration recorded in its runs' `config_snapshot`; no scheduled day or recovery is badged "publishable".
+- The recovery shows 36/36 combinations accounted for: 11 carried over + 25 newly executed, per strategy too.
+- A page notice states that v5.2.3's interrupted Day 2 leaves its four-day comparison incomplete.
+
+Regression tests are in `App.test.tsx`. No backend, schema or benchmark record changed. The description below is
+the original defect.
 
 **Where:** [`frontend/src/pages/Evaluation.tsx`](../frontend/src/pages/Evaluation.tsx) (`RunGroup`), together with
 the per-run summaries stored in `evaluation_runs`.
@@ -40,7 +43,8 @@ incident record` or `not publishable` for any scheduled day, and the recovery gr
 
 ## KI-2: the Evaluation page header is out of date
 
-**Status (2026-11-07): fixed in the source, not yet deployed** (same change as KI-1).
+**Status: FIXED and deployed** (same release as KI-1). The page now shows the review status from the persisted
+attestation: 45 cases attested by the project owner (`b7099444ac31`), with the T17 translator-assisted disclosure.
 
 **Where:** the same file, the `PageHeader` description.
 
@@ -65,6 +69,10 @@ incident and Days 2 (recovery), 3 and 4 ran under separate exploratory registrat
 
 ## KI-4: the DEMO banner overstates "no real model was called"
 
+**Status: FIXED and deployed** (same release as KI-1). The banner now reads: "DEMO — simulated responses.
+Interactive production requests use simulated responses through the mock provider. Historical evaluation
+records may include real provider calls; those records are not live production traffic."
+
 **Where:** [`frontend/src/components/DemoBanner.tsx`](../frontend/src/components/DemoBanner.tsx).
 
 **Text:** "Only the mock provider is enabled. No real model was called and no figures here describe real usage."
@@ -75,9 +83,7 @@ Usage & Cost. So the banner's second sentence is wrong for the historical data s
 
 **Found:** while capturing the production screenshots on 2026-11-07.
 
-**Proposed fix (not applied):** reword to "This deployment only serves simulated responses (mock provider).
-Benchmark rows from tenant `eval-runner` are real Groq calls made from the CLI." Until then, say this out loud in
-demos.
+**Original proposal:** a rewording along these lines; the deployed text above is the final version.
 
 ## Not defects, but worth knowing
 
