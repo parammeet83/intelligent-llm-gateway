@@ -293,12 +293,12 @@ npm run lint; npm run typecheck; npm test; npm run build
 npm run test:e2e          # Playwright: starts its own throwaway backend (SQLite, mock provider)
 ```
 
-Latest CI run, on commit `61984cd` (GitHub Actions, PostgreSQL 17 service):
+CI run [42332875657](https://github.com/parammeet83/intelligent-llm-gateway/actions/runs/42332875657) on commit `89d708c` (Day 4 closure; GitHub Actions, PostgreSQL 17 service):
 
 | Suite | Result |
 |---|---|
-| Backend tests | 1,689 passed, 10 skipped (opt-in live-database checks), 27 expected failures |
-| Frontend Vitest | 28 passed |
+| Backend tests | 1,716 passed, 10 skipped (opt-in live-database checks), 27 expected failures |
+| Frontend Vitest | 29 passed |
 | Playwright | 9 passed (desktop and mobile) |
 | Dependency audits | `pip-audit` clean; production `npm audit` 0 vulnerabilities |
 | Secret scan | clean |
