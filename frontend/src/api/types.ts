@@ -307,8 +307,20 @@ export interface EvalRun {
   // Only the registration fields the Evaluation page reads; the snapshot has many more.
   config_snapshot?: {
     execution_revision?: string | null;
-    execution_schedule?: { day: number; days: number } | null;
-    execution_recovery?: { day: number; executes: unknown[]; carried_over: number } | null;
+    execution_schedule?: { day: number; days: number; case_ids?: string[] } | null;
+    execution_recovery?: {
+      day: number;
+      executes: [string, string][]; // (case, strategy) pairs the recovery ran
+      carried_over: number;
+      original_runs?: Record<string, string>; // strategy -> interrupted run id
+    } | null;
+    review_attestation?: {
+      sha256: string;
+      cases_attested: number;
+      reviewer_role: string;
+      disclosures?: Record<string, string>;
+    } | null;
+    dataset_fully_reviewed?: boolean;
   } | null;
   started_at: string;
   finished_at: string | null;

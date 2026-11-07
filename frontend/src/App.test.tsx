@@ -32,7 +32,11 @@ describe("shell and authentication", () => {
   it("shows the DEMO banner only while every provider is simulated", async () => {
     mockFetch(base);
     const { unmount } = renderAt("/providers-missing");
-    expect(await screen.findByText(/DEMO — simulated responses/)).toBeInTheDocument();
+    const banner = await screen.findByRole("note");
+    expect(banner).toHaveTextContent("DEMO — simulated responses.");
+    expect(banner).toHaveTextContent("Interactive production requests use simulated responses through the mock provider.");
+    expect(banner).toHaveTextContent("Historical evaluation records may include real provider calls; those records are not live production traffic.");
+    expect(banner).not.toHaveTextContent("No real model was called");
     unmount();
     mockFetch({ ...base, "/api/v1/health": { body: { ...HEALTH_SIMULATED, providers: ["groq"], simulated_only: false } } });
     renderAt("/providers-missing");
@@ -257,39 +261,85 @@ describe("providers, tenants, usage, evaluation, settings", () => {
     expect(screen.getByText(/it is not a measurement of quality/)).toBeInTheDocument();
   });
 
-  it("never badges a scheduled day or a recovery as publishable, and discloses the recovery's full count", async () => {
-    session.set(SESSION);
-    const metrics = { cases: 10, executed: 10, failures: 0, failure_rate: 0, scorable: 10, passed: 10, pass_rate: 1, pass_rate_wilson_95: [0.72, 1], by_difficulty: {}, estimated_list_cost_total_usd: "0.001", estimated_list_cost_per_request_usd: "0.0001", estimated_list_cost_per_accepted_answer_usd: "0.0001", input_tokens: 1, output_tokens: 1, latency_p50_ms: 1, latency_p95_ms: 2, fallback_rate: 0, provider_distribution: {}, model_distribution: {}, tier_distribution: { premium: 10 }, not_auto_scorable: 0, needs_human_review: 0 };
-    const run = (id: string, label: string, status: string, publishable: boolean | null, snapshot: object) => ({
-      id, label, strategy: "baseline_premium", dataset_version: "routewise_bench_v5", policy_version: "rw-2026.11-v1", simulated: false, status,
-      preregistration_sha256: "test-prereg-hash",
-      summary: publishable === null ? null : { metrics, comparison_vs_baseline: null, publishable, publishable_reasons: [], label },
-      config_snapshot: snapshot, started_at: "2026-11-05T09:09:00", finished_at: null,
+  describe("benchmark run groups (registered schedule, recovery, exploratory days)", () => {
+    const metricsFor = (cases: number, passed: number) => ({ cases, executed: cases, failures: 0, failure_rate: 0, scorable: cases, passed, pass_rate: passed / cases, pass_rate_wilson_95: [0.6, 1], by_difficulty: {}, estimated_list_cost_total_usd: "0.001", estimated_list_cost_per_request_usd: "0.0001", estimated_list_cost_per_accepted_answer_usd: "0.0001", input_tokens: 1, output_tokens: 1, latency_p50_ms: 1, latency_p95_ms: 2, fallback_rate: 0, provider_distribution: {}, model_distribution: {}, tier_distribution: { premium: cases }, not_auto_scorable: 0, needs_human_review: 0 });
+    const STRATEGIES = ["baseline_premium", "routewise", "routewise_tier_first"];
+    const attestation = { sha256: "attestation-hash-for-tests", cases_attested: 45, reviewer_role: "Project owner", disclosures: { T17: "T17: translator-assisted owner review; no native-speaker or independent linguistic validation" } };
+    const cases = (n: number, prefix = "X") => Array.from({ length: n }, (_, i) => `${prefix}${i}`);
+    const exploratory = (days: string) => [`post-incident exploratory registration (written after Days ${days} were observed): not publishable as a confirmatory result`];
+    type Group = { label: string; revision: string; day: number; caseIds: string[]; status: string; summary: (strategy: string) => object | null; recovery?: object };
+    const group = ({ label, revision, day, caseIds, status, summary, recovery }: Group) =>
+      STRATEGIES.map((strategy) => ({
+        id: `${label}-${strategy}`, label, strategy, dataset_version: "routewise_bench_v5", policy_version: "rw-2026.11-v1", simulated: false, status,
+        preregistration_sha256: "test-prereg-hash", summary: summary(strategy),
+        config_snapshot: { execution_revision: revision, execution_schedule: { day, days: 4, case_ids: caseIds }, execution_recovery: recovery ?? null, review_attestation: attestation, dataset_fully_reviewed: true },
+        started_at: "2026-11-05T09:09:00", finished_at: null,
+      }));
+    const summary = (cases: number, passed: number, publishable: boolean, reasons: string[] = []) => ({ metrics: metricsFor(cases, passed), comparison_vs_baseline: null, publishable, publishable_reasons: reasons, label: "x" });
+    // The recovery's 25 executed (case, strategy) pairs: 8 baseline, 8 routewise, 9 tier-first; 11 carried over.
+    const executes = [...cases(8, "B").map((c) => [c, "baseline_premium"]), ...cases(8, "R").map((c) => [c, "routewise"]), ...cases(9, "T").map((c) => [c, "routewise_tier_first"])];
+    const recovery = { day: 2, executes, carried_over: 11, original_runs: { baseline_premium: "o1", routewise: "o2", routewise_tier_first: "o3" } };
+    const items = [
+      ...group({ label: "v5.2.6-day4", revision: "routewise_bench_v5.2.6", day: 4, caseIds: cases(12), status: "completed", summary: () => summary(12, 11, false, exploratory("1-3")) }),
+      ...group({ label: "v5.2.5-day3", revision: "routewise_bench_v5.2.5", day: 3, caseIds: cases(11), status: "completed", summary: () => summary(11, 11, false, exploratory("1-2")) }),
+      ...group({ label: "v5.2.4-day2-recovery-run", revision: "routewise_bench_v5.2.4", day: 2, caseIds: cases(12), status: "completed", recovery,
+        summary: (s) => summary(s === "routewise_tier_first" ? 9 : 8, s === "routewise_tier_first" ? 9 : 8, true) }), // stored per-run summaries say publishable: true
+      ...group({ label: "v5.2.3-day2", revision: "routewise_bench_v5.2.3", day: 2, caseIds: cases(12), status: "failed", summary: () => null }),
+      ...group({ label: "v5.2.3-day1", revision: "routewise_bench_v5.2.3", day: 1, caseIds: cases(10), status: "completed", summary: () => summary(10, 10, true) }),
+    ];
+    const card = (label: string) => screen.getByRole("heading", { name: label }).closest("section") as HTMLElement;
+
+    async function renderGroups() {
+      session.set(SESSION);
+      mockFetch({ ...base, "/api/v1/admin/evaluation/runs": { body: { items } } });
+      renderAt("/evaluation");
+      await screen.findByRole("heading", { name: "v5.2.4-day2-recovery-run" });
+    }
+
+    it("never renders a publishable badge for any scheduled day or recovery", async () => {
+      await renderGroups();
+      expect(screen.queryByText("publishable")).not.toBeInTheDocument();
+      const badges = screen.getAllByTitle("Publication eligibility");
+      expect(badges).toHaveLength(5); // one per group
+      for (const badge of badges) expect(badge.className).not.toContain("text-ok");
     });
-    const schedule = (day: number) => ({ execution_schedule: { day, days: 4 } });
-    mockFetch({
-      ...base,
-      "/api/v1/admin/evaluation/runs": {
-        body: {
-          items: [
-            run("d1", "v5.2.3-day1", "completed", true, schedule(1)),
-            run("d2", "v5.2.3-day2", "failed", null, schedule(2)),
-            run("rec", "v5.2.4-day2-recovery-run", "completed", true, {
-              ...schedule(2),
-              execution_recovery: { day: 2, executes: Array.from({ length: 25 }, (_, i) => i), carried_over: 11 },
-            }),
-          ],
-        },
-      },
+
+    it("gives every historical group its correct execution and publication status", async () => {
+      await renderGroups();
+      const execution = (label: string) => within(card(label)).getByTitle("Execution status");
+      expect(execution("v5.2.3-day1")).toHaveTextContent("completed");
+      expect(within(card("v5.2.3-day1")).getByText("not publishable on its own")).toBeInTheDocument();
+      expect(within(card("v5.2.3-day1")).getByText("30/30 combinations accounted for")).toBeInTheDocument();
+      expect(execution("v5.2.3-day2")).toHaveTextContent("interrupted");
+      expect(execution("v5.2.5-day3")).toHaveTextContent("completed");
+      expect(execution("v5.2.6-day4")).toHaveTextContent("completed");
+      expect(within(card("v5.2.3-day2")).getByText("incident record · not a result")).toBeInTheDocument();
+      expect(within(card("v5.2.3-day2")).getByText(/It is incomplete and is not a result/)).toBeInTheDocument();
+      for (const label of ["v5.2.5-day3", "v5.2.6-day4"]) {
+        expect(within(card(label)).getByText("post-incident exploratory · not publishable")).toBeInTheDocument();
+        expect(within(card(label)).getByText(/post-incident exploratory registration: not publishable as a confirmatory result/)).toBeInTheDocument();
+      }
+      expect(within(card("v5.2.5-day3")).getByText("33/33 combinations accounted for")).toBeInTheDocument();
+      expect(within(card("v5.2.6-day4")).getByText("36/36 combinations accounted for")).toBeInTheDocument();
+      expect(screen.getByText(/routewise_bench_v5\.2\.3: day 2 of 4 was interrupted \(v5\.2\.3-day2\), so its 4-day confirmatory comparison is incomplete/)).toBeInTheDocument();
     });
-    renderAt("/evaluation");
-    expect(await screen.findByText("v5.2.4-day2-recovery-run")).toBeInTheDocument();
-    expect(screen.queryByText("publishable")).not.toBeInTheDocument(); // no green badge on any group
-    expect(screen.getByText("post-hoc recovery · not publishable")).toBeInTheDocument();
-    expect(screen.getByText(/only the 25 combinations it executed; 11 more were carried over .* accounts for 36 in total/)).toBeInTheDocument();
-    expect(screen.getByText("interrupted · incident record")).toBeInTheDocument();
-    expect(screen.getByText(/Day 1 of a registered 4-day schedule\. A single day is not a confirmatory result/)).toBeInTheDocument();
-    expect(screen.queryByText(/pending human review/)).not.toBeInTheDocument();
+
+    it("accounts for all 36 recovery combinations: 11 carried over and 25 newly executed", async () => {
+      await renderGroups();
+      const rec = card("v5.2.4-day2-recovery-run");
+      expect(within(rec).getByTitle("Execution status")).toHaveTextContent("recovery completed");
+      expect(within(rec).getByText("post-hoc recovery · exploratory · not publishable")).toBeInTheDocument();
+      expect(within(rec).getByText("36/36 combinations accounted for")).toBeInTheDocument();
+      expect(within(rec).getByText(/36\/36 combinations accounted for — 11 carried over unchanged from the interrupted runs and 25 newly executed/)).toBeInTheDocument();
+      expect(within(rec).getAllByText("12/12 accounted: 4 carried over + 8 executed")).toHaveLength(2);
+      expect(within(rec).getByText("12/12 accounted: 3 carried over + 9 executed")).toBeInTheDocument();
+    });
+
+    it("shows the dataset review status from the persisted attestation", async () => {
+      await renderGroups();
+      expect(screen.getByText(/Dataset review: 45 cases attested by the project owner \(attestation attestation-\), fully reviewed\. Disclosure: T17: translator-assisted/)).toBeInTheDocument();
+      expect(screen.queryByText(/pending human review/)).not.toBeInTheDocument();
+    });
   });
 
   it("shows an empty evaluation state", async () => {
