@@ -304,6 +304,12 @@ export interface EvalRun {
     publishable_reasons: string[];
     label: string;
   } | null;
+  // Only the registration fields the Evaluation page reads; the snapshot has many more.
+  config_snapshot?: {
+    execution_revision?: string | null;
+    execution_schedule?: { day: number; days: number } | null;
+    execution_recovery?: { day: number; executes: unknown[]; carried_over: number } | null;
+  } | null;
   started_at: string;
   finished_at: string | null;
 }

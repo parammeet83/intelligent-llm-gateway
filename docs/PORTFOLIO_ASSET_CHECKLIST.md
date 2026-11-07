@@ -3,6 +3,31 @@
 What exists, what's missing, and exactly how to capture the missing screenshots yourself. Don't use generated or
 mocked-up images of the app; capture the real thing.
 
+## Status (2026-11-07)
+
+Captured with Playwright (real Chromium) from the **deployed** app and public GitHub pages, into
+[`docs/screenshots/production/`](screenshots/production/):
+
+| File | Shows |
+|---|---|
+| `01-landing-signin.png` | DEMO banner and administrator sign-in (empty token field) |
+| `02-overview.png` | Overview KPIs and readiness (140 requests: 3 simulated, the rest real Groq benchmark requests from the CLI) |
+| `04-routing-decision.png` | The `interview-demo` simulated request's decision record: score 68.16, reason codes, contributions, candidates |
+| `05-request-logs.png` | Request Logs filtered to `mock-premium`, showing that one simulated request |
+| `06-usage-cost.png` | Usage & Cost: actual charges $0 vs estimated list-price cost, tokens, latency |
+| `08-health-ready.png` | The live `/api/v1/health` and `/api/v1/ready` responses (two genuine captures stacked in one image) |
+| `09-github-overview.png` | The public repository page at commit `60a3740` |
+| `10-github-ci.png` | CI run 42330582354 (all four jobs green) on the Day 4 registration commit `60a3740` |
+| `11-mobile-overview.png` | Overview on a Pixel 7 viewport |
+
+**Still missing (genuinely not captured):**
+- `03-request-powershell.png`: a real PowerShell window can't be captured by browser automation. Take it
+  yourself during a demo, and crop out the key.
+- `07-evaluation.png`: skipped on purpose. The Evaluation-page fix is in the source but not deployed, so the live
+  page still shows misleading badges ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)).
+
+The demo request behind 04 and 05 used a temporary key, revoked right afterwards.
+
 ## What already exists
 
 [`docs/screenshots/`](screenshots/) has 9 PNGs, committed on 2026-11-04 (commit `63a86ee`):

@@ -1,10 +1,16 @@
 # Known issues
 
-Genuine defects found during the documentation review on 2026-11-06. They are recorded here instead of being
+Genuine defects found during the documentation reviews on 2026-11-06 and 2026-11-07. They are recorded here instead of being
 silently fixed: the review was documentation-only. None affects routing, tenancy, budgets or the benchmark data
 itself.
 
 ## KI-1: the Evaluation page shows "publishable" for non-publishable runs
+
+**Status (2026-11-07): fixed in the source, not yet deployed.** `Evaluation.tsx` now takes each group's status
+from the registration recorded in its runs' `config_snapshot` (`execution_schedule`, `execution_recovery`),
+with a regression test in `App.test.tsx`; no backend, schema or benchmark record changed. The live dashboard
+(Vercel) still shows the old behaviour until the frontend is redeployed, which needs a separate, authorised
+Vercel deploy. Until then, keep the Evaluation page out of screenshots and demos.
 
 **Where:** [`frontend/src/pages/Evaluation.tsx`](../frontend/src/pages/Evaluation.tsx) (`RunGroup`), together with
 the per-run summaries stored in `evaluation_runs`.
@@ -25,12 +31,16 @@ the per-run summaries stored in `evaluation_runs`.
 **Workaround for demos:** show [BENCHMARK_RESULTS.md](BENCHMARK_RESULTS.md), or only the `v5.2.5-day3` group, and
 say why.
 
-**Proposed fix (not applied):**
+**Fix (in source; not deployed):** the badge now says `post-hoc recovery · not publishable`, `interrupted ·
+incident record` or `not publishable` for any scheduled day, and the recovery group explains "25 executed + 11 carried over
+= 36". The original proposal was:
 1. Show a per-label status from the registration (`publishable`, `kind`) rather than the run summary.
 2. Hide or relabel the per-run "publishable" badge for scheduled days and recoveries.
 3. For the recovery, show the 36-combination totals from the official report instead of the per-run summaries.
 
 ## KI-2: the Evaluation page header is out of date
+
+**Status (2026-11-07): fixed in the source, not yet deployed** (same change as KI-1).
 
 **Where:** the same file, the `PageHeader` description.
 
@@ -49,9 +59,25 @@ the reasons.
 
 **Text:** "day N of 4 … pool all days with `eval-combine`".
 
-**Fact:** a pooled four-day analysis can't be produced, because Day 2 (v5.2.3) is incomplete and Day 4 was not
-run. The text is generic schedule output, so the reports were **not** edited (they are hash-recorded evidence).
+**Fact:** a pooled four-day analysis can't be produced, because the original v5.2.3 Day 2 is an interrupted
+incident and Days 2 (recovery), 3 and 4 ran under separate exploratory registrations; no pooled analysis is registered. The text is generic schedule output, so the reports were **not** edited (they are hash-recorded evidence).
 [BENCHMARK_RESULTS.md](BENCHMARK_RESULTS.md) states the correct status.
+
+## KI-4: the DEMO banner overstates "no real model was called"
+
+**Where:** [`frontend/src/components/DemoBanner.tsx`](../frontend/src/components/DemoBanner.tsx).
+
+**Text:** "Only the mock provider is enabled. No real model was called and no figures here describe real usage."
+
+**Fact:** the deployed API only serves the mock provider, but the benchmark CLI writes its real Groq requests
+(tenant `eval-runner`, Days 1–4) to the same Neon database. They appear in Overview totals, Request Logs and
+Usage & Cost. So the banner's second sentence is wrong for the historical data shown.
+
+**Found:** while capturing the production screenshots on 2026-11-07.
+
+**Proposed fix (not applied):** reword to "This deployment only serves simulated responses (mock provider).
+Benchmark rows from tenant `eval-runner` are real Groq calls made from the CLI." Until then, say this out loud in
+demos.
 
 ## Not defects, but worth knowing
 

@@ -9,7 +9,7 @@ the traffic, costs and decisions. A pre-registered benchmark compares routing ag
 |---|---|
 | **Live dashboard** | https://routewise-dashboard.vercel.app (admin sign-in required, except *Providers & Models*) |
 | **Live API** | https://routewise-api-ggjk.onrender.com: try [`/api/v1/health`](https://routewise-api-ggjk.onrender.com/api/v1/health) and [`/api/v1/ready`](https://routewise-api-ggjk.onrender.com/api/v1/ready) |
-| **Status** | Deployed (Render + Vercel + Neon). CI runs on every push to `main` and on pull requests; latest verified green run: [42168398327](https://github.com/parammeet83/intelligent-llm-gateway/actions/runs/42168398327) on closure commit `61984cd`. Benchmark Days 1–3 run; Day 4 not run |
+| **Status** | Deployed (Render + Vercel + Neon). CI runs on every push to `main` and on pull requests; for example, run [42330582354](https://github.com/parammeet83/intelligent-llm-gateway/actions/runs/42330582354) passed on the Day 4 registration commit `60a3740`. All four benchmark days run once under four registrations; the original four-day confirmatory experiment remains incomplete |
 
 > [!IMPORTANT]
 > **Production runs the mock provider only** (`MOCK_PROVIDER_ENABLED=true`, `GROQ_ENABLED=false`; `/health` reports
@@ -346,14 +346,16 @@ Full write-up: [docs/BENCHMARK_RESULTS.md](docs/BENCHMARK_RESULTS.md).
 | 2 (2026-11-05) | v5.2.3 | 11/36 | — | **Interrupted** by a Neon timeout. It remains an incident record; its runs stay `failed` |
 | 2 (recovery) | v5.2.4 | 36/36 | 12/12 · 12/12 · 12/12 | A **separate**, disclosed post-hoc registration later accounted for all 36 Day 2 combinations: 11 genuine results carried over plus 25 run once. **Exploratory, non-publishable** |
 | 3 (2026-11-06) | v5.2.5 | 33/33 | 11/11 · 11/11 · 11/11 | Completed; 25/25 independent reconciliation checks; **post-incident exploratory, non-publishable** |
-| 4 | — | — | — | **Not run, not authorised** |
+| 4 (2026-11-07) | v5.2.6 | 36/36 | 12/12 · 11/12 · 11/12 | Completed; 27/27 independent reconciliation checks. Both RouteWise strategies failed case T04 on the small model, so the registered quality and cost rules **did not hold**. **Post-incident exploratory, non-publishable** |
 
 **What this does and doesn't show.**
-- **No confirmatory result.** The four-day confirmatory experiment is **incomplete**: Day 2 was interrupted, Day 4
-  wasn't run, and the Day 2 recovery and Day 3 registrations were written after earlier days had been observed. No
-  claim of statistical superiority or non-inferiority is made.
-- **Cost ratios are exploratory.** RouteWise sent 50–70% of each day's requests to the smaller model. On Day 3, estimated
-  list-price cost per accepted answer was roughly 0.71–0.73 × the baseline's, and 0.86–0.92 × on Day 1. These are
+- **No confirmatory result.** The original four-day confirmatory experiment is **incomplete**: its Day 2 was
+  interrupted, and the Day 2 recovery, Day 3 and Day 4 registrations were written after earlier days had been
+  observed. No claim of statistical superiority or non-inferiority is made.
+- **Descriptive totals (Days 1–4, not a registered analysis):** baseline 45/45, both RouteWise strategies 43/45.
+  Both losses (T03, T04) were standard cases sent to the small model.
+- **Cost ratios are exploratory.** RouteWise sent 50–70% of each day's requests to the smaller model. Estimated list-price cost
+  per accepted answer was 0.86–0.92 × the baseline's on Day 1, 0.71–0.73 × on Day 3 and 0.77 × on Day 4. These are
   shadow list prices; actual charges were **$0** (free tier).
 - **The two RouteWise strategies can't be told apart.** With only two Groq models enabled, they chose the same model
   on every case.
@@ -371,27 +373,36 @@ Full write-up: [docs/BENCHMARK_RESULTS.md](docs/BENCHMARK_RESULTS.md).
   process.
 - **Rate limiting:** fixed windows allow up to 2× bursts across a minute boundary.
 - **Non-streaming only.**
-- **Known display issue:** the dashboard's Evaluation page shows two benchmark groups as "publishable" when they
-  are not ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)).
+- **Known display issues** ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)):
+  - The Evaluation page's misleading "publishable" badges and recovery count are fixed in the source, but the fix
+    is **not yet deployed** to the live dashboard.
+  - The DEMO banner overstates "no real model was called": the same database also holds the real Groq benchmark
+    requests.
 
 **Future work:**
 - shared health state (e.g. Redis) for multiple instances
 - streaming
 - semantic or learned complexity estimation, validated against the benchmark
 - a fresh, fully prospective multi-day registration with more cases and more distinct model families
-- correcting the Evaluation page's publishability display
+- deploying the Evaluation-page fix and correcting the DEMO banner wording
 
 ## Screenshots
 
-The images in [`docs/screenshots/`](docs/screenshots/) were captured by Playwright from a local run with
-**simulated (mock-provider) demo data**. They are not production usage. A checklist for capturing up-to-date
-production screenshots is in [docs/PORTFOLIO_ASSET_CHECKLIST.md](docs/PORTFOLIO_ASSET_CHECKLIST.md).
+Genuine screenshots of the **deployed** app, captured with Playwright (real Chromium) on 2026-11-07 and stored in
+[`docs/screenshots/production/`](docs/screenshots/production/):
+- The live API is mock-only, so the one interactive request shown (tenant `interview-demo`) is **simulated**.
+- The `eval-runner` rows and token totals come from the real Groq benchmark, which ran from the CLI against the same
+  database.
+- The Evaluation page is not shown, because its fix isn't deployed yet.
 
 | | |
 |---|---|
-| ![Overview](docs/screenshots/overview.png) | ![Routing decisions](docs/screenshots/routing-decisions.png) |
-| ![Usage and cost](docs/screenshots/usage-cost.png) | ![Providers and models](docs/screenshots/providers-models.png) |
-| ![Tenants and budgets](docs/screenshots/tenants-budgets.png) | ![Mobile overview](docs/screenshots/mobile-overview.png) |
+| ![Overview](docs/screenshots/production/02-overview.png) | ![Routing decision](docs/screenshots/production/04-routing-decision.png) |
+| ![Request logs](docs/screenshots/production/05-request-logs.png) | ![Usage and cost](docs/screenshots/production/06-usage-cost.png) |
+| ![Health and readiness](docs/screenshots/production/08-health-ready.png) | ![Mobile overview](docs/screenshots/production/11-mobile-overview.png) |
+
+Older images in [`docs/screenshots/`](docs/screenshots/) are from a local mock run on 2026-11-04. The checklist is in
+[docs/PORTFOLIO_ASSET_CHECKLIST.md](docs/PORTFOLIO_ASSET_CHECKLIST.md).
 
 ## Documentation map
 
@@ -399,7 +410,7 @@ production screenshots is in [docs/PORTFOLIO_ASSET_CHECKLIST.md](docs/PORTFOLIO_
 |---|---|
 | A guided tour of the design | [Project overview](docs/PROJECT_OVERVIEW.md) |
 | Presenting it | [Demo guide](docs/DEMO_GUIDE.md) · [Interview preparation](docs/INTERVIEW_PREPARATION.md) · [Portfolio checklist](docs/PORTFOLIO_ASSET_CHECKLIST.md) |
-| Results | [Benchmark results](docs/BENCHMARK_RESULTS.md) · [Day 3 closure](docs/BENCHMARK_DAY3_CLOSURE_v5.2.5.md) · [Evaluation method](docs/EVALUATION.md) |
+| Results | [Benchmark results](docs/BENCHMARK_RESULTS.md) · [Day 3 closure](docs/BENCHMARK_DAY3_CLOSURE_v5.2.5.md) · [Day 4 closure](docs/BENCHMARK_DAY4_CLOSURE_v5.2.6.md) · [Evaluation method](docs/EVALUATION.md) |
 | Internals | [Architecture](docs/ARCHITECTURE.md) · [Routing](docs/ROUTING_METHODOLOGY.md) · [Providers](docs/PROVIDER_INTEGRATION.md) · [Cost accounting](docs/COST_ACCOUNTING.md) · [Tenancy and security](docs/TENANCY_AND_SECURITY.md) · [Database](docs/DATABASE_SCHEMA.md) · [API](docs/API.md) |
 | Operations | [Deployment](docs/DEPLOYMENT.md) · [Operations runbook](docs/OPERATIONS_RUNBOOK.md) · [Benchmark operator runbook](docs/BENCHMARK_OPERATOR_RUNBOOK.md) · [Testing](docs/TESTING.md) · [Known issues](docs/KNOWN_ISSUES.md) |
 | Requirements | [PRD](docs/PRD.md) · [TRD](docs/TRD.md) · [Traceability](docs/REQUIREMENTS_TRACEABILITY.md) |

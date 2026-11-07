@@ -83,8 +83,8 @@ I've read through the code, and I can walk through any module and explain why it
 - **CI:** runs on every push to `main`. The latest verified run, 42168398327 on commit `61984cd`, passed all four
   jobs.
 - **Production is mock-only:** responses are simulated, so public traffic can't use the free Groq quota.
-- **Benchmark:** three of four planned days are done; Day 4 wasn't run, so the confirmatory experiment is
-  incomplete.
+- **Benchmark:** all four scheduled days have been run once, but under four registrations; the original
+  four-day confirmatory experiment is incomplete.
 
 ## 2. Why an LLM gateway?
 
@@ -235,9 +235,11 @@ tell them apart, and I say that openly.
   incident record. A separate, disclosed recovery registration later accounted for all 36 combinations, 12/12
   for everyone.
 - **Day 3:** 33/33 combinations, all 11/11, with 25 of 25 independent reconciliation checks passing.
+- **Day 4:** 36/36 combinations under its own registration, 27 of 27 checks. The baseline passed 12/12 and routing
+  11/12 (case T04 on the small model), so the quality rule did not hold again.
 
-Day 4 wasn't run, and the later registrations were made after seeing data. So these are exploratory results, not
-a confirmatory finding.
+The recovery, Day 3 and Day 4 registrations were all made after seeing earlier data, and the original protocol's
+Day 2 stays an incident. So these are exploratory results, not a confirmatory finding.
 
 **Q23. Why do you call Day 3 "exploratory" if it passed everything?**
 Because the Day 3 registration was written after Days 1 and 2 had been run and observed. A confirmatory test has to
@@ -321,6 +323,7 @@ checkpoint before migrating.
 | Tables / migration head | 13 / `0003` |
 | Routing thresholds | < 35 small, < 65 medium, else premium; policy `rw-2026.11-v1` |
 | Reliability defaults | 30 s provider timeout, 60 s request deadline, 1 retry, breaker at 3 failures for 30 s |
-| Tests (latest verified CI run 42168398327, commit `61984cd`) | 1,689 backend passed; 28 Vitest; 9 Playwright |
-| Benchmark | Original v5.2.3 protocol registered before Day 1. Day 1 30/30 (routing 9/10 vs 10/10). Day 2 interrupted (incident record); separate v5.2.4 recovery accounted for all 36. Day 3 (v5.2.5) 33/33, 25/25 checks. Recovery and Day 3 are exploratory; Day 4 not run |
-| Groq usage | 99 attempts, 31,823 tokens over three days, $0 actual charge |
+| Tests | Backend 1,689 passed in CI (e.g. run 42330582354 on `60a3740`, with the Day 4 tests added); 29 Vitest; 9 Playwright |
+| Benchmark | Original v5.2.3 protocol registered before Day 1. Day 1 30/30 (routing 9/10 vs 10/10). Day 2 interrupted (incident record); separate v5.2.4 recovery accounted for all 36. Day 3 (v5.2.5) 33/33, 25/25 checks. Day 4 (v5.2.6) 36/36, 27/27 checks. Recovery, Day 3 and Day 4 are exploratory |
+| Groq usage | 135 attempts, 43,328 tokens over four days, $0 actual charge |
+| Day 4 | v5.2.6 (exploratory): 36/36, 27/27 checks; baseline 12/12, routing 11/12 (T04 failed on the small model), so the quality rule did not hold |

@@ -19,15 +19,45 @@ function PassRateBar({ rate, ci }: { rate: number | null; ci: [number, number] |
   );
 }
 
+// A run's own summary only knows that run. For a day of a registered multi-day schedule (or a
+// recovery of one), its "publishable" flag says nothing about the registered comparison, so the
+// status comes from the registration recorded in the run's config snapshot instead.
+function groupStatus(runs: EvalRun[]): { badge: string; note: string | null } {
+  const snapshot = runs[0]?.config_snapshot;
+  const schedule = snapshot?.execution_schedule;
+  if (!schedule) {
+    return { badge: runs[0]?.summary?.publishable ? "publishable" : "not publishable", note: null };
+  }
+  const recovery = snapshot?.execution_recovery;
+  if (recovery) {
+    const executed = recovery.executes.length;
+    return {
+      badge: "post-hoc recovery · not publishable",
+      note:
+        `Disclosed post-hoc recovery of day ${recovery.day}. These runs hold only the ${executed} combinations it executed; ` +
+        `${recovery.carried_over} more were carried over from the interrupted runs, so the recovery accounts for ` +
+        `${executed + recovery.carried_over} in total (see its report). Exploratory, not a confirmatory result.`,
+    };
+  }
+  if (runs.some((r) => r.status === "failed")) {
+    return { badge: "interrupted · incident record", note: `Day ${schedule.day} of ${schedule.days} was interrupted and is kept as an incident record, not a result.` };
+  }
+  return {
+    badge: "not publishable",
+    note: `Day ${schedule.day} of a registered ${schedule.days}-day schedule. A single day is not a confirmatory result on its own, and the registered four-day comparison was never completed.`,
+  };
+}
+
 function RunGroup({ label, runs }: { label: string; runs: EvalRun[] }) {
   const simulated = runs.some((r) => r.simulated);
   const reasons = runs[0]?.summary?.publishable_reasons ?? [];
+  const status = groupStatus(runs);
   return (
     <Card>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h2 className="font-semibold">{label}</h2>
         {simulated ? <SimulatedBadge /> : <Badge tone="ok">live providers</Badge>}
-        {runs[0]?.summary?.publishable ? <Badge tone="ok">publishable</Badge> : <Badge tone="danger">not publishable</Badge>}
+        <Badge tone={status.badge === "publishable" ? "ok" : "danger"}>{status.badge}</Badge>
         <span className="text-xs text-muted">{formatDateTime(runs[0]?.started_at)} · dataset {runs[0]?.dataset_version} · prereg {runs[0]?.preregistration_sha256.slice(0, 10)}</span>
       </div>
       {simulated ? (
@@ -35,6 +65,7 @@ function RunGroup({ label, runs }: { label: string; runs: EvalRun[] }) {
           Simulated run on the mock provider. It checks that the benchmark pipeline works; it is not a measurement of quality, cost or latency.
         </p>
       ) : null}
+      {status.note ? <p className="mb-3 rounded border border-warn/40 bg-warn/10 p-2 text-sm">{status.note}</p> : null}
       {reasons.length ? <p className="mb-3 text-sm text-muted">Not publishable: {reasons.join("; ")}.</p> : null}
       <TableWrap>
         <table className="w-full">
@@ -88,7 +119,7 @@ export function Evaluation() {
     <section>
       <PageHeader
         title="Benchmark & Evaluation"
-        description="All-premium baseline vs RouteWise routing on the same 45 cases, judged against thresholds registered before any run. The dataset is AI-drafted and pending human review, so no run is publishable yet."
+        description="All-premium baseline vs RouteWise routing on the 45-case suite, judged against pre-registered thresholds. Each group is one run label; a scheduled day or a recovery is exploratory and not a confirmatory result on its own."
       />
       {state.status === "loading" ? <LoadingState /> : null}
       {state.status === "error" ? <ErrorState error={state.error} onRetry={state.reload} /> : null}

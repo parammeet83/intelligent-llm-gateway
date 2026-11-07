@@ -5,6 +5,19 @@ Everything here uses the committed helpers `scripts\benchmark-day.ps1` and `scri
 Don't edit the registered files (`evaluation\*v5.2.3*`, the dataset, the scoring amendment or the attestation),
 `.env`, or the production deployment.
 
+## Final Day 4 state (2026-11-07): completed under v5.2.6 (post-incident, exploratory)
+
+- **Day 4 is complete** under `routewise_bench_v5.2.6`, which authorises Day 4 only and declares
+  `publishable: false`. It ran 02:51:04–03:02:29 UTC with
+  `.\scripts\benchmark-day.ps1 -Revision routewise_bench_v5.2.6 -Day 4 ... -Run`.
+  - 36/36 combinations; baseline 12/12, both RouteWise strategies 11/12 (T04 failed).
+  - 36 Groq attempts and 11,505 tokens; no retries or fallbacks.
+  - Full record: `docs\BENCHMARK_DAY4_CLOSURE_v5.2.6.md`.
+- **Day 4 can't run again.** Its claim `7e6ee6dc-1b85-40e5-b4a8-f9b0c72f55f4` refuses any second start. Never
+  delete it or the Day 3 claim.
+- **No further day is registered.** All four scheduled days have been run once, but the original v5.2.3 four-day
+  confirmatory comparison remains incomplete, and no pooled analysis is registered.
+
 ## Final Day 3 state (2026-11-06): completed under v5.2.5 (post-incident, exploratory)
 
 - **Day 3 is complete** under `routewise_bench_v5.2.5`, which authorises Day 3 only and declares

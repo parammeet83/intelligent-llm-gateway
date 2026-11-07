@@ -257,6 +257,41 @@ describe("providers, tenants, usage, evaluation, settings", () => {
     expect(screen.getByText(/it is not a measurement of quality/)).toBeInTheDocument();
   });
 
+  it("never badges a scheduled day or a recovery as publishable, and discloses the recovery's full count", async () => {
+    session.set(SESSION);
+    const metrics = { cases: 10, executed: 10, failures: 0, failure_rate: 0, scorable: 10, passed: 10, pass_rate: 1, pass_rate_wilson_95: [0.72, 1], by_difficulty: {}, estimated_list_cost_total_usd: "0.001", estimated_list_cost_per_request_usd: "0.0001", estimated_list_cost_per_accepted_answer_usd: "0.0001", input_tokens: 1, output_tokens: 1, latency_p50_ms: 1, latency_p95_ms: 2, fallback_rate: 0, provider_distribution: {}, model_distribution: {}, tier_distribution: { premium: 10 }, not_auto_scorable: 0, needs_human_review: 0 };
+    const run = (id: string, label: string, status: string, publishable: boolean | null, snapshot: object) => ({
+      id, label, strategy: "baseline_premium", dataset_version: "routewise_bench_v5", policy_version: "rw-2026.11-v1", simulated: false, status,
+      preregistration_sha256: "test-prereg-hash",
+      summary: publishable === null ? null : { metrics, comparison_vs_baseline: null, publishable, publishable_reasons: [], label },
+      config_snapshot: snapshot, started_at: "2026-11-05T09:09:00", finished_at: null,
+    });
+    const schedule = (day: number) => ({ execution_schedule: { day, days: 4 } });
+    mockFetch({
+      ...base,
+      "/api/v1/admin/evaluation/runs": {
+        body: {
+          items: [
+            run("d1", "v5.2.3-day1", "completed", true, schedule(1)),
+            run("d2", "v5.2.3-day2", "failed", null, schedule(2)),
+            run("rec", "v5.2.4-day2-recovery-run", "completed", true, {
+              ...schedule(2),
+              execution_recovery: { day: 2, executes: Array.from({ length: 25 }, (_, i) => i), carried_over: 11 },
+            }),
+          ],
+        },
+      },
+    });
+    renderAt("/evaluation");
+    expect(await screen.findByText("v5.2.4-day2-recovery-run")).toBeInTheDocument();
+    expect(screen.queryByText("publishable")).not.toBeInTheDocument(); // no green badge on any group
+    expect(screen.getByText("post-hoc recovery · not publishable")).toBeInTheDocument();
+    expect(screen.getByText(/only the 25 combinations it executed; 11 more were carried over .* accounts for 36 in total/)).toBeInTheDocument();
+    expect(screen.getByText("interrupted · incident record")).toBeInTheDocument();
+    expect(screen.getByText(/Day 1 of a registered 4-day schedule\. A single day is not a confirmatory result/)).toBeInTheDocument();
+    expect(screen.queryByText(/pending human review/)).not.toBeInTheDocument();
+  });
+
   it("shows an empty evaluation state", async () => {
     session.set(SESSION);
     mockFetch({ ...base, "/api/v1/admin/evaluation/runs": { body: { items: [] } } });

@@ -23,7 +23,7 @@ npm run test:e2e                  # starts a real backend on a throwaway SQLite 
 | Backend lint / format / mypy strict | clean |
 | Backend pytest (SQLite **and** PostgreSQL 17 service) | **1,689 passed, 10 skipped, 27 xfailed** (skips = opt-in live-database checks; xfails = strict markers on superseded benchmark revisions' manifest tests, which must fail) |
 | Migrations on PostgreSQL | `0001 → 0002 → 0003` applied in CI before the tests |
-| Frontend Vitest | **28 passed** |
+| Frontend Vitest | **28 passed** (29 since the 2026-11-07 Evaluation-page fix and its regression test) |
 | Playwright E2E (desktop + mobile) | **9 passed** |
 | `pip-audit` / production `npm audit` | no known vulnerabilities / 0 vulnerabilities |
 | `detect-secrets` | clean against the reviewed baseline |

@@ -21,7 +21,8 @@ Links:
    > then appear in the dashboard's totals. They are mock-provider rows marked `simulated`. Nothing here touches the
    > benchmark tables.
 
-   - **Once only (first demo ever):** *Tenants & Budgets* → create a dedicated tenant `interview-demo` (name
+   - **Already done (2026-11-07):** the dedicated tenant `interview-demo` now exists in production; skip this.
+     For reference, it was created once like this: *Tenants & Budgets* → a dedicated tenant `interview-demo` (name
      "Interview demo"), for example with a daily budget of 1.00. **Reuse it for every later demo.** Creating the
      same slug again is refused (`409 CONFLICT`), and creating a new tenant each time would clutter production.
    - **Every demo:** on the `interview-demo` card, click **Create key** to issue a fresh key just for this session.
@@ -57,7 +58,7 @@ Revoked keys stay listed (status *revoked*) as an audit trail; that's expected.
 | 5 | 2:30–3:15 | PowerShell | Run the **complex** request, then the **high-quality** request | Complex: score ≈ 68 → `premium` → `mock-premium`. High quality: score ≈ 25 but `HIGH_STAKES` forces premium | "Multi-step reasoning crosses the premium threshold. And a caller can mark a request high-stakes: the score is low, but the policy forces premium. Same rules, different outcome, all explained." |
 | 6 | 3:15–3:45 | Dashboard → *Routing Decisions*, then open one request in *Request Logs* | Click the request you just sent | Reason codes, score contributions, the candidates table ("Eligible / excluded because"; the disabled Groq and OpenRouter models show `PROVIDER_DISABLED`), and the attempts | "Every decision is stored. Here you can see every model that was *not* chosen and why, plus the fallback chain the executor would use if the first model failed." |
 | 7 | 3:45–4:30 | GitHub → `backend/app/` | Open `routing/engine.py`, then `services/executor.py` (just the top docstring) | Thin API layer; pure router; executor rules | "The router is a pure function: no I/O, same input, same decision, so it's easy to test. The executor handles timeouts, one retry with jittered backoff, circuit breakers and fallbacks. Budgets are reserved atomically in PostgreSQL before any provider call." |
-| 8 | 4:30–5:30 | `docs/BENCHMARK_RESULTS.md` (and optionally the dashboard *Evaluation* page) | Show the day-by-day table | Day 1: 9/10 vs 10/10; Day 3: 33/33 combinations, 25/25 checks; "exploratory" labels | "The benchmark ran against real Groq models under a four-day protocol registered before Day 1. Day 1, routing lost one case, so the quality rule failed that day. Day 2 was interrupted by a database timeout; it stays recorded as an incident instead of being hidden, and a separate recovery later accounted for all 36 of its combinations. Day 3 ran cleanly with 25 independent checks. But those later days were registered after I'd seen earlier results, so they're exploratory, and Day 4 wasn't run. I don't claim routing is proven better." |
+| 8 | 4:30–5:30 | `docs/BENCHMARK_RESULTS.md` (not the dashboard *Evaluation* page until its fix is deployed) | Show the day-by-day table | Day 1: 9/10 vs 10/10; Day 3: 33/33 combinations, 25/25 checks; "exploratory" labels | "The benchmark ran against real Groq models under a four-day protocol registered before Day 1. Day 1, routing lost one case, so the quality rule failed that day. Day 2 was interrupted by a database timeout; it stays recorded as an incident instead of being hidden, and a separate recovery later accounted for all 36 of its combinations. Day 3 ran cleanly with 25 independent checks. But those later days were registered after I'd seen earlier results, so they're exploratory, and Day 4 wasn't run. I don't claim routing is proven better." |
 | 9 | 5:30–6:15 | `docs/PROJECT_OVERVIEW.md` → *Atomic benchmark execution claims* diagram | — | Unique constraint; concurrent claimants → exactly 1 winner (tests race 4 claims; a stress check raced 20) | "After the incident, a database-level guarantee was added: a benchmark day takes a claim row with a unique constraint before any provider call, so it can never run twice, even with two processes racing. If the database is uncertain, it refuses." |
 | 10 | 6:15–7:00 | README → *Limitations* | — | Mock-only production; heuristic routing; in-memory health | "Limitations: production is a demo, the router is a keyword heuristic, and health state is per process. Next steps would be shared state for scaling, streaming, and a fresh prospective benchmark with more cases. Happy to go deeper on any part." |
 
@@ -81,7 +82,10 @@ $r = Ask @{ prompt = "Summarise this in one sentence: RouteWise routes LLM reque
 $r.routing | Select-Object score, computed_tier, required_tier, reason_codes
 ```
 
-**Expected values** (dry-run with the production configuration: mock provider only, policy `rw-2026.11-v1`):
+**Expected values** (dry-run with the production configuration: mock provider only, policy `rw-2026.11-v1`). On
+production the `interview-demo` tenant has a daily budget, so `PRICE_UNKNOWN` is also listed: models with no
+published price are excluded under a budget. The live request on 2026-11-07 returned exactly that for the complex
+prompt: score 68.16, `mock/mock-premium`, `HIGH_COMPLEXITY`, `PRICE_UNKNOWN`, `CHEAPEST_ELIGIBLE`, `SIMULATED_PROVIDER`.
 
 | Request | Score | Computed → required tier | Model | Reason codes |
 |---|---|---|---|---|

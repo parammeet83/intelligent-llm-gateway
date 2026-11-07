@@ -1,10 +1,12 @@
 # Evaluation
 
-Status (2026-11-06): **live benchmark Days 1–3 run on Groq; Day 4 not run; the four-day confirmatory
-experiment is incomplete.**
+Status (2026-11-07): **all four scheduled days run once on Groq, under four registrations; the original
+four-day confirmatory experiment is incomplete.**
 - Day 1 completed (v5.2.3).
-- Day 2 was interrupted, then completed by a disclosed post-hoc recovery (v5.2.4, exploratory).
+- Day 2 was interrupted and remains an incident record; a disclosed post-hoc recovery (v5.2.4, exploratory)
+  accounted for its 36 combinations.
 - Day 3 completed under a post-incident exploratory registration (v5.2.5, 33/33, 25/25 reconciliation checks).
+- Day 4 completed under a post-incident exploratory registration (v5.2.6, 36/36, 27/27 reconciliation checks).
 
 Results and limitations: [BENCHMARK_RESULTS.md](BENCHMARK_RESULTS.md). This file documents the method and the
 history of dataset revisions; the revision notes below were written at the time and describe the state then.

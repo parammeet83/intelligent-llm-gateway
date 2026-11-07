@@ -6,7 +6,7 @@ S1 = spec card (screenshot 1), S2 = acceptance checklist (screenshot 2), P = mas
 provider or fake transports, not yet against a real provider · **Implemented** = built, not fully verified ·
 **Blocked** = needs your action · **N/A** = not applicable (reason given).
 
-Last updated: 2026-11-06 (deployed; benchmark Days 1–3 run, Day 4 not run). Earlier rows keep their original evidence.
+Last updated: 2026-11-07 (deployed; all four benchmark days run once under four registrations; the original four-day confirmatory experiment remains incomplete). Earlier rows keep their original evidence.
 
 ## Screenshot 1 — Project specification
 
@@ -26,7 +26,7 @@ Last updated: 2026-11-06 (deployed; benchmark Days 1–3 run, Day 4 not run). Ea
 | S1-13 | Metrics: cost per successful task, success vs baseline, p50/p95, fallback rate, rate-limit rejection rate, % traffic per tier | `accounting/usage.py`, `evaluation/report.py` | EVALUATION.md, COST_ACCOUNTING.md | usage and report tests | Verified (mock); real values Blocked |
 | S1-14 | 30–50 item benchmark with quality bar and max cost/latency per item | `routewise_bench_v2.jsonl` (45; v1 kept), per-difficulty limits, prereg-v2 | EVALUATION.md, v2 changelog | `test_dataset_v2.py`: 45 reference pairs + adversarial answers | Verified; **owner review Blocked** (C-05) |
 | S1-15/16 | Gateway, rules, adapters, telemetry; dashboard, limits, budgets, experiment, deploy, results | Phases 2–7 | implementation_plan.md | this table | Deploy and results Blocked |
-| S1-17 | Résumé bullet with real [X]% / [Y]% | from a publishable report only | README.md | — | Blocked: live Days 1–3 ran, but no publishable confirmatory report exists (Day 4 not run; see BENCHMARK_RESULTS.md) |
+| S1-17 | Résumé bullet with real [X]% / [Y]% | from a publishable report only | README.md | — | Blocked: live Days 1–4 ran, but no publishable confirmatory report exists (the original protocol's Day 2 was interrupted; later days are exploratory; see BENCHMARK_RESULTS.md) |
 | S1-18 | Reference repositories | README comparison section | README.md | review | Implemented |
 | S1-19 | SaaS gateway / document-pipeline framing | demo tenants `acme-saas`, `docflow` | PRD.md | seed tests | Verified |
 | S1-20 | FinOps thinking | actual vs estimated, four statuses, shadow budgets | COST_ACCOUNTING.md | cost and budget tests | Verified |

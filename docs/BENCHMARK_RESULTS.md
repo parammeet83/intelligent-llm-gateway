@@ -1,20 +1,23 @@
 # Benchmark results
 
-**Bottom line:** three days of a planned four-day benchmark were run against real Groq models.
-- Day 1 completed. Routing lost one case and its pre-registered rules did not hold.
+**Bottom line:** all four scheduled days have now been run once against real Groq models, but under four
+separate registrations.
+- Day 1 completed (v5.2.3). Routing lost one case and its pre-registered rules did not hold.
 - Day 2 (v5.2.3) was interrupted and remains an incident record. A separate, disclosed v5.2.4 recovery later
   accounted for all 36 Day 2 combinations.
-- Day 3 completed cleanly and was independently reconciled.
-- Day 4 was not run.
+- Day 3 completed cleanly and was independently reconciled (v5.2.5).
+- Day 4 completed and was independently reconciled (v5.2.6). Routing lost one case and its pre-registered rules
+  did not hold.
 
-The four-day confirmatory experiment is therefore **incomplete**, and no confirmatory claim is made that routing
-is better, non-inferior or cheaper. Figures below are descriptive or exploratory.
+The original four-day confirmatory experiment is still **incomplete**: its own Day 2 was interrupted, and the
+recovery, Day 3 and Day 4 registrations are post-incident and exploratory. No confirmatory claim is made that
+routing is better, non-inferior or cheaper. Figures below are descriptive or exploratory.
 
 Sources (the numbers here are copied or computed from these files):
 - reports in `evaluation/reports/` (local and git-ignored; their SHA-256 hashes are recorded in the changelogs)
 - the registrations in [`evaluation/`](../evaluation/)
 - the changelogs in [`evaluation/datasets/`](../evaluation/datasets/)
-- the [Day 3 closure](BENCHMARK_DAY3_CLOSURE_v5.2.5.md)
+- the [Day 3 closure](BENCHMARK_DAY3_CLOSURE_v5.2.5.md) and the [Day 4 closure](BENCHMARK_DAY4_CLOSURE_v5.2.6.md)
 
 Method details: [EVALUATION.md](EVALUATION.md).
 
@@ -28,10 +31,11 @@ the premium model.
 Both rules were written and hashed **before Day 1**, in the original four-day protocol `routewise_bench_v5.2.3`
 (registered 2026-11-04 18:25:33 UTC; Day 1 started 21:06:23 UTC). That protocol is the prospective part.
 
-The two later registrations reused the same rules but were written **post-incident**, after earlier results had
+The three later registrations reused the same rules but were written **post-incident**, after earlier results had
 been observed, so they are **exploratory**:
 - `v5.2.4` (Day 2 recovery), registered 2026-11-05 08:56:09 UTC
 - `v5.2.5` (Day 3), registered 2026-11-06 03:08:50 UTC
+- `v5.2.6` (Day 4), registered 2026-11-07 02:35:15 UTC
 
 ## 2. Setup
 
@@ -137,21 +141,47 @@ revision.
   - the claim present
   - all earlier runs and reports unchanged
 
-### Day 4: not run
+### Day 4: completed, post-incident exploratory (v5.2.6, 2026-11-07, 02:51:04–03:02:29 UTC)
 
-Day 4 (12 cases) was **not run and is not authorised**. v5.2.5 refuses it, and running it would need a new
-registration.
+- **Registration:** `routewise_bench_v5.2.6`, registered 2026-11-07T02:35:15Z after Days 1–3 had been observed,
+  so it is **exploratory**. It declares `publishable: false`, authorises Day 4 only, reuses the pinned schedule and
+  pinned code unchanged, and was committed (`60a3740`) before the first provider call.
+- **Workload:** 12 cases per strategy (S01 S04 S12 S13 S15 T01 T04 T10 T12 C02 C04 C05) × 3 = 36 combinations.
+  **36/36 accounted for.**
 
-## 4. Descriptive totals (Days 1–3; not a registered analysis)
+| Strategy | Pass | Wilson 95% CI | p50 / p95 latency | Est. list cost per accepted answer | Models used |
+|---|---|---|---|---|---|
+| baseline_premium | 12/12 | 75.8%–100% | 2,467 / 3,394 ms | $0.00013572 | 120B ×12 |
+| routewise | 11/12 | 64.6%–98.5% | 2,222 / 3,265 ms | $0.00010507 | 20B ×7, 120B ×5 |
+| routewise_tier_first | 11/12 | 64.6%–98.5% | 2,195 / 3,339 ms | $0.00010507 | 20B ×7, 120B ×5 |
+
+- Both RouteWise strategies failed **T04**, a standard case that was routed to `gpt-oss-20b`.
+- **Pre-registered verdicts:** the pass-rate difference was −0.083 for both (bootstrap CI −0.25 to 0.00). The
+  quality rule **did not hold**, so the cost rule **did not hold** either (cost-per-accepted ratio 0.77).
+- **Usage:**
+  - 36 requests, all succeeded, using 36 provider attempts (the registered maximum was 100).
+  - No retries or fallbacks.
+  - 11,505 tokens (input 5,898; output 5,607): 120B 8,985; 20B 2,520.
+- **Latency over all 36 results:** median 2,398 ms, p90 3,231 ms, maximum 3,394 ms.
+- **Cost:** actual charge **$0** (free tier); estimated list-price (shadow) cost $0.00394024 in total.
+- **Quota:** an owner reading at 02:35:47 UTC of 200,000 tokens/day remaining on both models (organization limit,
+  0 used); required ≥ 167,285 for the worst case.
+- **Protection:** the atomic execution claim `7e6ee6dc-1b85-40e5-b4a8-f9b0c72f55f4` was taken before any run or
+  provider call; the Day 3 claim is unchanged.
+- **Independent reconciliation: 27/27 checks passed**: the Day 3 checks plus an unchanged Day 3 claim and Day 3
+  report.
+
+## 4. Descriptive totals (Days 1–4; not a registered analysis)
 
 | | baseline_premium | routewise | routewise_tier_first |
 |---|---|---|---|
-| Passes | 33/33 | 32/33 | 32/33 |
+| Passes | 45/45 | 43/45 | 43/45 |
 
-- Total Groq usage: 30 + 36 + 33 = 99 provider attempts, 31,823 tokens, $0 actual charge.
-- RouteWise sent the small model 7 of 10 (Day 1), 6 of 12 (Day 2) and 7 of 11 (Day 3) requests.
+- Total Groq usage: 30 + 36 + 33 + 36 = 135 provider attempts, 43,328 tokens, $0 actual charge.
+- RouteWise sent the small model 7 of 10 (Day 1), 6 of 12 (Day 2), 7 of 11 (Day 3) and 7 of 12 (Day 4) requests.
+- Both routing losses (T03 on Day 1, T04 on Day 4) were standard cases sent to the small model.
 
-These totals mix three registrations, including post-hoc and post-incident ones. They are **not** a pooled
+These totals mix four registrations, including post-hoc and post-incident ones. They are **not** a pooled
 analysis, and no pooled analysis is registered.
 
 ## 5. Limitations
@@ -160,16 +190,16 @@ analysis, and no pooled analysis is registered.
 - 10–12 cases per day give very wide confidence intervals; 11/11 still has a lower bound of 74.1%.
 - When every case passes, the bootstrap difference interval collapses to [0, 0]. That says little about
   non-inferiority with this few cases.
-- The two RouteWise strategies chose the **same model on every case** on all three days. With only two Groq
+- The two RouteWise strategies chose the **same model on every case** on all four days. With only two Groq
   models enabled, `cheapest_capable` and `lowest_tier_first` make the same choices; they differ only when
   OpenRouter or Ollama models are eligible. The data can't distinguish them.
 - "Premium" means the largest *free* Groq model, and both models are from one family (GPT-OSS 20B vs 120B), not
   independent model families.
 
 **Exploratory vs confirmatory:**
-- Only the **original v5.2.3 four-day plan** was prospective, and it can't be completed: Day 2 was interrupted and
-  Day 4 wasn't run.
-- The Day 2 recovery (v5.2.4) and Day 3 (v5.2.5) were registered after earlier outcomes were known. They are
+- Only the **original v5.2.3 four-day plan** was prospective, and it can't be completed: its Day 2 was interrupted.
+  Day 4 was run later under its own exploratory registration (v5.2.6), which doesn't complete the original plan.
+- The Day 2 recovery (v5.2.4), Day 3 (v5.2.5) and Day 4 (v5.2.6) were registered after earlier outcomes were known. They are
   **exploratory**: useful for describing behaviour, not for confirming a hypothesis.
 - Day 1 on its own is a single day of a plan meant to be analysed only after all four days are pooled.
 
